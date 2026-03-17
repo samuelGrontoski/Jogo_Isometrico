@@ -7,30 +7,33 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.maps.tiled.TiledMap;
-import com.badlogic.gdx.maps.tiled.TmxMapLoader;
-import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class GameScreen implements Screen {
-    final JogoIsometrico game; // Assumo que JogoIsometrico tem um viewport/batch, mas criaremos locais aqui para não depender
+    final JogoIsometrico game;
 
     OrthographicCamera camera;
-    TiledMap map;
-    IsometricTiledMapRenderer renderer;
-
+    Viewport viewport;
+    // Definindo a resolução fixa que o jogo vai enxergar
+    final float VIEWPORT_WIDTH = 640f;
+    final float VIEWPORT_HEIGHT = 360f;
+    Texture mapaTexture;
     SpriteBatch batch;
     Texture playerSprite;
 
     // Posição do jogador no "Mundo" (coordenadas do grid isométrico)
     Vector2 playerMundo;
     float velocidade = 5f;
+    Vector2 inputDirecao = new Vector2();
 
-    // Tamanho do tile do seu mapa (do Tiled)
+    // Tamanho do tile
     final float TILE_WIDTH = 32f;
     final float TILE_HEIGHT = 16f;
 
+    // Limites da "Grade Virtual"
     float limiteMapaX;
     float limiteMapaY;
 
@@ -38,30 +41,28 @@ public class GameScreen implements Screen {
     float screenX;
     float screenY;
 
+    // Variáveis para alinhar o PNG com a matemática
+    float mapaOffsetX;
+    float mapaOffsetY;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
 
-        // 1. Configurar a Câmera
-        float w = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
         camera = new OrthographicCamera();
-        camera.setToOrtho(false, w, h);
-        camera.position.set(0, 0, 0);
-        camera.update();
+        viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
 
-        // 2. Carregar o Mapa do Tiled
-        map = new TmxMapLoader().load("mapa_simples.tmx");
-
-        int mapWidth = map.getProperties().get("width", Integer.class);
-        int mapHeight = map.getProperties().get("height", Integer.class);
-        limiteMapaX = (float) mapWidth;
-        limiteMapaY = (float) mapHeight;
-
-        // 3. Criar Renderizador
-        renderer = new IsometricTiledMapRenderer(map);
-
-        batch = new SpriteBatch();
+        mapaTexture = new Texture("mapa_simples.png");
         playerSprite = new Texture("personagem.png");
+        batch = new SpriteBatch();
+
+        int mapWidthTiles = 50;
+        int mapHeightTiles = 40;
+
+        limiteMapaX = (float) mapWidthTiles;
+        limiteMapaY = (float) mapHeightTiles;
+
+        mapaOffsetX = 0;
+        mapaOffsetY = -limiteMapaX * (TILE_HEIGHT / 2f);
 
         playerMundo = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
     }
@@ -78,38 +79,54 @@ public class GameScreen implements Screen {
     }
 
     private void input(float delta) {
-        float moveSpeed = velocidade * delta;
+        float velocidadeAtual = velocidade;
 
-        // Movimento nas coordenadas isométricas do mundo
+        if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT)) {
+            velocidadeAtual = 7.5f;
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) {
+            velocidadeAtual = 1.5f;
+        }
+
+        float moveSpeed = velocidadeAtual * delta;
+        inputDirecao.set(0, 0);
+
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            playerMundo.x += moveSpeed;
-            playerMundo.y += moveSpeed;
+            inputDirecao.x += 1;
+            inputDirecao.y += 1;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            playerMundo.x -= moveSpeed;
-            playerMundo.y -= moveSpeed;
+            inputDirecao.x -= 1;
+            inputDirecao.y -= 1;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            playerMundo.x += moveSpeed;
-            playerMundo.y -= moveSpeed;
+            inputDirecao.x += 1;
+            inputDirecao.y -= 1;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            playerMundo.x -= moveSpeed;
-            playerMundo.y += moveSpeed;
+            inputDirecao.x -= 1;
+            inputDirecao.y += 1;
+        }
+
+        if (!inputDirecao.isZero()) {
+            inputDirecao.nor();
+            playerMundo.x += inputDirecao.x * moveSpeed;
+            playerMundo.y += inputDirecao.y * moveSpeed;
         }
     }
 
     private void logic() {
-        // Colisão com as bordas do mapa (grid do Tiled)
+        // Colisão com as bordas do mapa
         playerMundo.x = MathUtils.clamp(playerMundo.x, 0, limiteMapaY);
-        playerMundo.y = MathUtils.clamp(playerMundo.y, -limiteMapaX, 0); // Ajuste: Tiled costuma usar Y negativo no isométrico
+        playerMundo.y = MathUtils.clamp(playerMundo.y, -limiteMapaX, 0);
 
         // Converter Coordenadas do Mundo para a Tela
         screenX = (playerMundo.x - playerMundo.y) * (TILE_WIDTH / 2f);
         screenY = (playerMundo.x + playerMundo.y) * (TILE_HEIGHT / 2f);
 
-        // Centralizar a Câmera no Jogador
-        camera.position.set(screenX, screenY, 0);
+        // Câmera no Jogador
+        float offsetCameraY = VIEWPORT_HEIGHT / 4f;
+        camera.position.set(screenX, screenY + offsetCameraY, 0);
         camera.update();
     }
 
@@ -117,44 +134,41 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // 1. Desenhar o Mapa
-        renderer.setView(camera);
-        renderer.render();
+        viewport.apply();
 
-        // 2. Desenhar o Personagem
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
+        // Desenha o Mapa em PNG
+        batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
+
+        // Desenha o Personagem
         float drawX = screenX - (playerSprite.getWidth() / 2f);
         float drawY = screenY;
 
         batch.draw(playerSprite, drawX, drawY);
+
         batch.end();
     }
 
     @Override
     public void resize(int width, int height) {
-        // Atualiza a área visível da câmera se a janela for redimensionada
-        camera.setToOrtho(false, width, height);
+        viewport.update(width, height, false);
     }
 
     @Override
-    public void hide() {
-    }
+    public void hide() {}
 
     @Override
-    public void pause() {
-    }
+    public void pause() {}
 
     @Override
-    public void resume() {
-    }
+    public void resume() {}
 
     @Override
     public void dispose() {
-        map.dispose();
+        mapaTexture.dispose();
         batch.dispose();
         playerSprite.dispose();
-        renderer.dispose();
     }
 }
