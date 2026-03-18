@@ -89,6 +89,12 @@ public class GameScreen implements Screen {
     Array<ObjetoRenderizavel> rendersPedras = new Array<>();
     int quantidadePedras = 50;
 
+    // --- LÓGICA DE ATAQUE ---
+    Rectangle hitboxAtaque = new Rectangle();
+    boolean isAttacking = false;
+    float attackTimer = 0f;
+    final float ATTACK_DURATION = 0.2f;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
 
@@ -138,7 +144,7 @@ public class GameScreen implements Screen {
         runAnimationSW.setPlayMode(Animation.PlayMode.LOOP);
 
         int mapWidthTiles = 50;
-        int mapHeightTiles = 40;
+        int mapHeightTiles = 50;
 
         limiteMapaX = (float) mapWidthTiles;
         limiteMapaY = (float) mapHeightTiles;
@@ -197,29 +203,92 @@ public class GameScreen implements Screen {
         float moveSpeed = velocidadeAtual * delta;
         inputDirecao.set(0, 0);
 
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            inputDirecao.x += 1;
-            inputDirecao.y += 1;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            inputDirecao.x -= 1;
-            inputDirecao.y -= 1;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            inputDirecao.x += 1;
-            inputDirecao.y -= 1;
-            direcaoAtual = "SE";
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            inputDirecao.x -= 1;
-            inputDirecao.y += 1;
-            direcaoAtual = "SW";
+        if (!isAttacking) {
+            if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+                inputDirecao.x += 1;
+                inputDirecao.y += 1;
+                direcaoAtual = "N";
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+                inputDirecao.x -= 1;
+                inputDirecao.y -= 1;
+                direcaoAtual = "S";
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+                inputDirecao.x += 1;
+                inputDirecao.y -= 1;
+                direcaoAtual = "E";
+            }
+            if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+                inputDirecao.x -= 1;
+                inputDirecao.y += 1;
+                direcaoAtual = "W";
+            }
+
+            if (Gdx.input.isKeyPressed(Input.Keys.W) && Gdx.input.isKeyPressed(Input.Keys.D)) {
+                direcaoAtual = "NE";
+            } else if (Gdx.input.isKeyPressed(Input.Keys.W) && Gdx.input.isKeyPressed(Input.Keys.A)) {
+                direcaoAtual = "NW";
+            } else if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.D)) {
+                direcaoAtual = "SE";
+            } else if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.A)) {
+                direcaoAtual = "SW";
+            }
         }
 
-        if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.D)) {
-            direcaoAtual = "SE";
-        } else if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.A)) {
-            direcaoAtual = "SW";
+        // --- GATILHO DO ATAQUE ---
+        // Se clicar com o botão Esquerdo e não estiver atacando no momento
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !isAttacking) {
+            isAttacking = true;
+            attackTimer = 0f;
+
+            // Ponto central de onde o ataque vai nascer (começa no centro do jogador)
+            float attackCenterX = playerMundo.x;
+            float attackCenterY = playerMundo.y;
+
+            // Desloca o ataque para a frente, dependendo de onde ele está olhando
+            // (Em isométrico: SE = X+1 e Y-1 | SW = X-1 e Y+1)
+            float alcance = 0.8f;
+            switch (direcaoAtual) {
+                // --- DIREÇÕES CARDEAIS (As 4 pontas do losango na tela) ---
+                case "N": // Cima (W)
+                    attackCenterX += alcance + 1f;
+                    attackCenterY += alcance + 1f;
+                    break;
+                case "S": // Baixo (S)
+                    attackCenterX -= alcance;
+                    attackCenterY -= alcance;
+                    break;
+                case "E": // Direita (D)
+                    attackCenterX += alcance;
+                    attackCenterY -= alcance;
+                    break;
+                case "W": // Esquerda (A)
+                    attackCenterX -= alcance;
+                    attackCenterY += alcance;
+                    break;
+
+                // --- DIREÇÕES DIAGONAIS (As laterais retas do losango na tela) ---
+                case "NE": // Cima-Direita (W + D)
+                    attackCenterX += alcance;
+                    // O Y se anula matematicamente (+alcance -alcance = 0)
+                    break;
+                case "NW": // Cima-Esquerda (W + A)
+                    // O X se anula matematicamente
+                    attackCenterY += alcance;
+                    break;
+                case "SE": // Baixo-Direita (S + D)
+                    // O X se anula matematicamente
+                    attackCenterY -= alcance;
+                    break;
+                case "SW": // Baixo-Esquerda (S + A)
+                    attackCenterX -= alcance;
+                    // O Y se anula matematicamente
+                    break;
+            }
+
+            // Define a caixa de ataque (Tamanho 1.5x1.5 tiles, centralizada no ponto calculado)
+            hitboxAtaque.set(attackCenterX - 0.75f, attackCenterY - 0.75f, 1.5f, 1.5f);
         }
 
         // Aplica o movimento com Colisão Preditiva
@@ -264,6 +333,29 @@ public class GameScreen implements Screen {
     }
 
     private void logic() {
+        // --- LÓGICA DO ATAQUE E DESTRUIÇÃO ---
+        if (isAttacking) {
+            attackTimer += Gdx.graphics.getDeltaTime(); // Roda o relógio
+
+            // Se o tempo acabou, desliga o ataque
+            if (attackTimer >= ATTACK_DURATION) {
+                isAttacking = false;
+            } else {
+                // Checa colisão com as pedras (Lendo DE TRÁS PARA FRENTE)
+                for (int i = hitboxesPedras.size - 1; i >= 0; i--) {
+                    if (hitboxAtaque.overlaps(hitboxesPedras.get(i))) {
+                        // QUEBROU A PEDRA! Remove da lista de colisões e da lista de desenhos
+                        hitboxesPedras.removeIndex(i);
+                        rendersPedras.removeIndex(i);
+
+                        // (Opcional) Podemos colocar um "break;" aqui se você quiser
+                        // que 1 ataque quebre apenas 1 pedra por vez.
+                        // Sem o break, a sua "espada" atravessa e quebra várias juntas!
+                    }
+                }
+            }
+        }
+
         // Detecta o estado de movimento
         isMoving = !inputDirecao.isZero();
 
@@ -308,7 +400,7 @@ public class GameScreen implements Screen {
 
         if (isMoving) {
             Animation<TextureRegion> animacaoRunCerta;
-            if (direcaoAtual.equals("SW")) {
+            if (direcaoAtual.equals("SW") || direcaoAtual.equals("S") || direcaoAtual.equals("NW") || direcaoAtual.equals("W")) {
                 animacaoRunCerta = runAnimationSW;
             } else {
                 animacaoRunCerta = runAnimationSE;
@@ -318,7 +410,7 @@ public class GameScreen implements Screen {
         } else {
             // Escolhe a animação correta com base na direção
             Animation<TextureRegion> animacaoIdleCerta;
-            if (direcaoAtual.equals("SW")) {
+            if (direcaoAtual.equals("SW") || direcaoAtual.equals("S") || direcaoAtual.equals("NW") || direcaoAtual.equals("W")) {
                 animacaoIdleCerta = idleAnimationSW;
             } else {
                 animacaoIdleCerta = idleAnimationSE;
@@ -382,6 +474,10 @@ public class GameScreen implements Screen {
         }
         shapeRenderer.setColor(Color.RED);
         desenharRetanguloIsometrico(hitboxPlayer, shapeRenderer);
+        if (isAttacking) {
+            shapeRenderer.setColor(Color.BLUE);
+            desenharRetanguloIsometrico(hitboxAtaque, shapeRenderer);
+        }
         shapeRenderer.end();
     }
 
