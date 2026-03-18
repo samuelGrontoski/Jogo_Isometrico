@@ -10,9 +10,14 @@ import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.badlogic.gdx.utils.Array;
+import java.util.Comparator;
 
 public class GameScreen implements Screen {
     final JogoIsometrico game;
@@ -24,18 +29,25 @@ public class GameScreen implements Screen {
     Texture mapaTexture;
     SpriteBatch batch;
 
+    String direcaoAtual = "SE";
+
     // Idle
-    Animation<TextureRegion> idleAnimation;
-    Texture idleSheet; //
-    float stateTime; //
+    Animation<TextureRegion> idleAnimationSE;
+    Animation<TextureRegion> idleAnimationSW;
+    Texture idleSheetSE;
+    Texture idleSheetSW;
+
+    float stateTime;
     final int QUANTIDADE_FRAMES_IDLE = 6;
     float tempoEsperaIdle = 1.6f;
     float duracaoAnimacaoIdle;
     float tempoCicloIdle;
 
     // Correndo
-    Animation<TextureRegion> runAnimation;
-    Texture runSheet;
+    Animation<TextureRegion> runAnimationSE;
+    Animation<TextureRegion> runAnimationSW;
+    Texture runSheetSE;
+    Texture runSheetSW;
     final int QUANTIDADE_FRAMES_RUN = 6;
 
     boolean isMoving = false;
@@ -62,6 +74,21 @@ public class GameScreen implements Screen {
     float mapaOffsetX;
     float mapaOffsetY;
 
+    // Variáveis de colisão
+    Rectangle hitboxPlayer;
+    ShapeRenderer shapeRenderer;
+
+    Texture pedraTexture;
+
+    // --- LÓGICA DE Z-SORTING ---
+    Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
+    ObjetoRenderizavel renderPlayer = new ObjetoRenderizavel();
+    TextureRegion pedraRegion;
+
+    Array<Rectangle> hitboxesPedras = new Array<>();
+    Array<ObjetoRenderizavel> rendersPedras = new Array<>();
+    int quantidadePedras = 50;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
 
@@ -71,44 +98,44 @@ public class GameScreen implements Screen {
         mapaTexture = new Texture("mapa/mapa_simples.png");
         batch = new SpriteBatch();
 
-        // Idle
-        idleSheet = new Texture("personagem/personagem_idle.png");
+        // ======================= IDLE =======================
+        // Idle SE (Direita/Baixo)
+        idleSheetSE = new Texture("personagem/personagem_idle_se.png");
+        TextureRegion[][] tmpSE = TextureRegion.split(idleSheetSE, idleSheetSE.getWidth() / QUANTIDADE_FRAMES_IDLE, idleSheetSE.getHeight());
+        TextureRegion[] idleFramesSE = new TextureRegion[QUANTIDADE_FRAMES_IDLE];
+        System.arraycopy(tmpSE[0], 0, idleFramesSE, 0, QUANTIDADE_FRAMES_IDLE);
+        idleAnimationSE = new Animation<TextureRegion>(0.1f, idleFramesSE);
+        idleAnimationSE.setPlayMode(Animation.PlayMode.NORMAL);
 
-        TextureRegion[][] tmp = TextureRegion.split(idleSheet,
-            idleSheet.getWidth() / QUANTIDADE_FRAMES_IDLE,
-            idleSheet.getHeight() / 1);
+        // Idle SW (Esquerda/Baixo)
+        idleSheetSW = new Texture("personagem/personagem_idle_sw.png");
+        TextureRegion[][] tmpSW = TextureRegion.split(idleSheetSW, idleSheetSW.getWidth() / QUANTIDADE_FRAMES_IDLE, idleSheetSW.getHeight());
+        TextureRegion[] idleFramesSW = new TextureRegion[QUANTIDADE_FRAMES_IDLE];
+        System.arraycopy(tmpSW[0], 0, idleFramesSW, 0, QUANTIDADE_FRAMES_IDLE);
+        idleAnimationSW = new Animation<TextureRegion>(0.1f, idleFramesSW);
+        idleAnimationSW.setPlayMode(Animation.PlayMode.NORMAL);
 
-        TextureRegion[] idleFrames = new TextureRegion[QUANTIDADE_FRAMES_IDLE];
-        int index = 0;
-        for (int i = 0; i < 1; i++) {
-            for (int j = 0; j < QUANTIDADE_FRAMES_IDLE; j++) {
-                idleFrames[index++] = tmp[i][j];
-            }
-        }
-
-        idleAnimation = new Animation<TextureRegion>(0.1f, idleFrames);
-        idleAnimation.setPlayMode(Animation.PlayMode.NORMAL);
-        duracaoAnimacaoIdle = idleAnimation.getAnimationDuration();
+        // Tempos do Idle
+        duracaoAnimacaoIdle = idleAnimationSE.getAnimationDuration();
         tempoCicloIdle = duracaoAnimacaoIdle + tempoEsperaIdle;
         stateTime = 0f;
 
-        // Correndo
-        runSheet = new Texture("personagem/personagem_run_se.png");
+        // ===================== CORRENDO =====================
+        // Corrida SE
+        runSheetSE = new Texture("personagem/personagem_run_se.png");
+        TextureRegion[][] tmpRunSE = TextureRegion.split(runSheetSE, runSheetSE.getWidth() / QUANTIDADE_FRAMES_RUN, runSheetSE.getHeight());
+        TextureRegion[] runFramesSE = new TextureRegion[QUANTIDADE_FRAMES_RUN];
+        System.arraycopy(tmpRunSE[0], 0, runFramesSE, 0, QUANTIDADE_FRAMES_RUN);
+        runAnimationSE = new Animation<TextureRegion>(0.13f, runFramesSE);
+        runAnimationSE.setPlayMode(Animation.PlayMode.LOOP);
 
-        TextureRegion[][] tmpRun = TextureRegion.split(runSheet,
-            runSheet.getWidth() / QUANTIDADE_FRAMES_RUN,
-            runSheet.getHeight() / 1);
-
-        TextureRegion[] runFrames = new TextureRegion[QUANTIDADE_FRAMES_RUN];
-        int indexRun = 0;
-        for (int i = 0; i < 1; i++) {
-            for (int j = 0; j < QUANTIDADE_FRAMES_RUN; j++) {
-                runFrames[indexRun++] = tmpRun[i][j];
-            }
-        }
-
-        runAnimation = new Animation<TextureRegion>(0.13f, runFrames);
-        runAnimation.setPlayMode(Animation.PlayMode.LOOP);
+        // Corrida SW (NOVO)
+        runSheetSW = new Texture("personagem/personagem_run_sw.png");
+        TextureRegion[][] tmpRunSW = TextureRegion.split(runSheetSW, runSheetSW.getWidth() / QUANTIDADE_FRAMES_RUN, runSheetSW.getHeight());
+        TextureRegion[] runFramesSW = new TextureRegion[QUANTIDADE_FRAMES_RUN];
+        System.arraycopy(tmpRunSW[0], 0, runFramesSW, 0, QUANTIDADE_FRAMES_RUN);
+        runAnimationSW = new Animation<TextureRegion>(0.13f, runFramesSW);
+        runAnimationSW.setPlayMode(Animation.PlayMode.LOOP);
 
         int mapWidthTiles = 50;
         int mapHeightTiles = 40;
@@ -119,7 +146,30 @@ public class GameScreen implements Screen {
         mapaOffsetX = 0;
         mapaOffsetY = -limiteMapaX * (TILE_HEIGHT / 2f);
 
+        shapeRenderer = new ShapeRenderer();
+        hitboxPlayer = new Rectangle(10f, 0, 0.8f, 0.8f);
+
+        pedraTexture = new Texture("mapa/objetos/pedras/pedra_01.png");
+        pedraRegion = new TextureRegion(pedraTexture);
+
+        // Gera pedras aleatórias pelo mapa
+        for (int i = 0; i < quantidadePedras; i++) {
+            // Sorteia uma posição X e Y dentro dos limites do mapa (com uma margem para não ficar na borda extrema)
+            float px = MathUtils.random(2f, limiteMapaY - 2f);
+            float py = MathUtils.random(-limiteMapaX + 2f, -2f);
+
+            // Cria a caixa de colisão da pedra e guarda na lista
+            Rectangle novaPedra = new Rectangle(px, py, 1f, 1f);
+            hitboxesPedras.add(novaPedra);
+
+            // Já deixa o "pacote de desenho" dela pronto para economizar memória no loop de renderização
+            ObjetoRenderizavel novoRender = new ObjetoRenderizavel();
+            novoRender.textura = pedraRegion;
+            rendersPedras.add(novoRender);
+        }
+
         playerMundo = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
+        hitboxPlayer.setPosition(playerMundo.x + (hitboxPlayer.width / 2f), playerMundo.y + (hitboxPlayer.height / 2f));
     }
 
     @Override
@@ -158,16 +208,50 @@ public class GameScreen implements Screen {
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
             inputDirecao.x += 1;
             inputDirecao.y -= 1;
+            direcaoAtual = "SE";
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
             inputDirecao.x -= 1;
             inputDirecao.y += 1;
+            direcaoAtual = "SW";
         }
 
+        if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.D)) {
+            direcaoAtual = "SE";
+        } else if (Gdx.input.isKeyPressed(Input.Keys.S) && Gdx.input.isKeyPressed(Input.Keys.A)) {
+            direcaoAtual = "SW";
+        }
+
+        // Aplica o movimento com Colisão Preditiva
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
+
+            // Guarda a posição ANTES de mover
+            float oldX = playerMundo.x;
+            float oldY = playerMundo.y;
+
+            // --- TENTATIVA NO EIXO X ---
             playerMundo.x += inputDirecao.x * moveSpeed;
+            hitboxPlayer.setPosition(playerMundo.x + (hitboxPlayer.width / 2f), playerMundo.y + (hitboxPlayer.height / 2f));
+
+            for (Rectangle pedra : hitboxesPedras) {
+                if (hitboxPlayer.overlaps(pedra)) {
+                    playerMundo.x = oldX;
+                    hitboxPlayer.setPosition(playerMundo.x - (hitboxPlayer.width / 2f), playerMundo.y - (hitboxPlayer.height / 2f));
+                    break;
+                }
+            }
+
+            // --- TENTATIVA NO EIXO Y ---
             playerMundo.y += inputDirecao.y * moveSpeed;
+            hitboxPlayer.setPosition(playerMundo.x + (hitboxPlayer.width / 2f), playerMundo.y + (hitboxPlayer.height / 2f));
+
+            for (Rectangle pedra : hitboxesPedras) {
+                if (hitboxPlayer.overlaps(pedra)) {
+                    playerMundo.y = oldY;
+                    break;
+                }
+            }
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
@@ -183,9 +267,11 @@ public class GameScreen implements Screen {
         // Detecta o estado de movimento
         isMoving = !inputDirecao.isZero();
 
+        float margemPlayer = 1.5f;
+
         // Colisão com as bordas do mapa
-        playerMundo.x = MathUtils.clamp(playerMundo.x, 0, limiteMapaY);
-        playerMundo.y = MathUtils.clamp(playerMundo.y, -limiteMapaX, 0);
+        playerMundo.x = MathUtils.clamp(playerMundo.x, 0, limiteMapaY - margemPlayer);
+        playerMundo.y = MathUtils.clamp(playerMundo.y, -limiteMapaX, -margemPlayer);
 
         // Converter Coordenadas do Mundo para a Tela
         screenX = (playerMundo.x - playerMundo.y) * (TILE_WIDTH / 2f);
@@ -208,9 +294,11 @@ public class GameScreen implements Screen {
 
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
-        // --- LÓGICA DE TROCA DE ANIMAÇÃO ---
+        // LÓGICA DE Z-SORTING (LISTA ORDENÁVEL)
 
-        // Se o personagem acabou de começar a andar, ou acabou de parar, zeramos o cronômetro!
+        listaDeDesenho.clear();
+
+        // Se o personagem mudou de estado (andou -> parou, parou -> andou), reseta o tempo
         if (isMoving != wasMoving) {
             stateTime = 0f;
             wasMoving = isMoving;
@@ -219,29 +307,82 @@ public class GameScreen implements Screen {
         TextureRegion currentFrame;
 
         if (isMoving) {
-            // Se estiver andando:
-            // Pegamos o frame da animação de corrida (o true força o loop se o stateTime passar do tempo)
-            currentFrame = runAnimation.getKeyFrame(stateTime, true);
+            Animation<TextureRegion> animacaoRunCerta;
+            if (direcaoAtual.equals("SW")) {
+                animacaoRunCerta = runAnimationSW;
+            } else {
+                animacaoRunCerta = runAnimationSE;
+            }
+            currentFrame = animacaoRunCerta.getKeyFrame(stateTime, true);
 
         } else {
-            // Se estiver parado:
+            // Escolhe a animação correta com base na direção
+            Animation<TextureRegion> animacaoIdleCerta;
+            if (direcaoAtual.equals("SW")) {
+                animacaoIdleCerta = idleAnimationSW;
+            } else {
+                animacaoIdleCerta = idleAnimationSE;
+            }
+
+            // Lógica de pausa do Idle
             if (stateTime > tempoCicloIdle) {
                 stateTime = 0f;
             }
             if (stateTime <= duracaoAnimacaoIdle) {
-                currentFrame = idleAnimation.getKeyFrame(stateTime, false);
+                currentFrame = animacaoIdleCerta.getKeyFrame(stateTime, false);
             } else {
-                currentFrame = idleAnimation.getKeyFrame(0, false);
+                currentFrame = animacaoIdleCerta.getKeyFrame(0, false);
             }
         }
 
-        // Desenha o frame
-        float drawX = screenX - (currentFrame.getRegionWidth() / 2f);
-        float drawY = screenY;
+        // Calcula a posição do personagem na tela
+        float playerDrawX = screenX - (currentFrame.getRegionWidth() / 2f);
+        float playerDrawY = screenY;
 
-        batch.draw(currentFrame, drawX, drawY);
+        renderPlayer.textura = currentFrame;
+        renderPlayer.drawX = playerDrawX;
+        renderPlayer.drawY = playerDrawY;
+        renderPlayer.sortY = screenY;
+        listaDeDesenho.add(renderPlayer);
+
+        // Prepara TODAS AS PEDRAS e joga na lista
+        for (int i = 0; i < hitboxesPedras.size; i++) {
+            Rectangle pedra = hitboxesPedras.get(i);
+            ObjetoRenderizavel render = rendersPedras.get(i);
+
+            float pScreenX = (pedra.x - pedra.y) * (TILE_WIDTH / 2f);
+            float pScreenY = (pedra.x + pedra.y) * (TILE_HEIGHT / 2f);
+
+            render.drawX = pScreenX - (pedraTexture.getWidth() / 2f);
+            render.drawY = pScreenY;
+            render.sortY = pScreenY;
+
+            listaDeDesenho.add(render);
+        }
+
+        listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
+            @Override
+            public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
+                return Float.compare(obj2.sortY, obj1.sortY);
+            }
+        });
+
+        for (ObjetoRenderizavel obj : listaDeDesenho) {
+            batch.draw(obj.textura, obj.drawX, obj.drawY);
+        }
 
         batch.end();
+
+        // --- DEBUG DE COLISÃO (Linhas verdes e vermelhas) ---
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        shapeRenderer.setColor(Color.GREEN);
+        for (Rectangle pedra : hitboxesPedras) {
+            desenharRetanguloIsometrico(pedra, shapeRenderer);
+        }
+        shapeRenderer.setColor(Color.RED);
+        desenharRetanguloIsometrico(hitboxPlayer, shapeRenderer);
+        shapeRenderer.end();
     }
 
     @Override
@@ -262,7 +403,37 @@ public class GameScreen implements Screen {
     public void dispose() {
         mapaTexture.dispose();
         batch.dispose();
-        idleSheet.dispose();
-        runSheet.dispose();
+        idleSheetSE.dispose();
+        idleSheetSW.dispose();
+        runSheetSE.dispose();
+        runSheetSW.dispose();
+        pedraTexture.dispose();
+    }
+
+    private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
+        // Pega os 4 cantos matemáticos da caixa
+        float x1 = rect.x, y1 = rect.y;
+        float x2 = rect.x + rect.width, y2 = rect.y;
+        float x3 = rect.x + rect.width, y3 = rect.y + rect.height;
+        float x4 = rect.x, y4 = rect.y + rect.height;
+
+        // Converte os 4 cantos para a visão do monitor (Screen)
+        float sx1 = (x1 - y1) * (TILE_WIDTH / 2f); float sy1 = (x1 + y1) * (TILE_HEIGHT / 2f);
+        float sx2 = (x2 - y2) * (TILE_WIDTH / 2f); float sy2 = (x2 + y2) * (TILE_HEIGHT / 2f);
+        float sx3 = (x3 - y3) * (TILE_WIDTH / 2f); float sy3 = (x3 + y3) * (TILE_HEIGHT / 2f);
+        float sx4 = (x4 - y4) * (TILE_WIDTH / 2f); float sy4 = (x4 + y4) * (TILE_HEIGHT / 2f);
+
+        // Desenha as 4 linhas conectando os pontos
+        sr.line(sx1, sy1, sx2, sy2);
+        sr.line(sx2, sy2, sx3, sy3);
+        sr.line(sx3, sy3, sx4, sy4);
+        sr.line(sx4, sy4, sx1, sy1);
+    }
+
+    class ObjetoRenderizavel {
+        TextureRegion textura;
+        float drawX;
+        float drawY;
+        float sortY;
     }
 }
