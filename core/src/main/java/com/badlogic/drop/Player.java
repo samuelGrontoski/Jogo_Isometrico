@@ -24,8 +24,20 @@ public class Player {
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
     public boolean estaAtacando = false;
-    public float attackTimer = 0f;
+    public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
+    public final float tempoRecargaAtaque = 0.41f;
+
+    // --- Dash ---
+    public boolean estaDandoDash = false;
+    public float dashTimer = 0f;
+    public final float duracaoDash = 0.15f;
+    public float cooldownDashTimer = 1.0f;
+    public final float tempoRecargaDash = 1.0f;
+    public Vector2 direcaoDash = new Vector2();
+    public float tempoPressionadoShift = 0f;
+    public boolean shiftEstavaPressionado = false;
+    public final float TEMPO_PARA_CORRER = 0.2f;
 
     // --- Animações ---
     float stateTime;
@@ -101,17 +113,75 @@ public class Player {
     }
 
     public void updateInput(float delta, Array<Rectangle> pedras, float limiteX, float limiteY) {
+        if (cooldownDashTimer < tempoRecargaDash) {
+            cooldownDashTimer += delta;
+        }
+
+        inputDirecao.set(0, 0);
+
+        if (!estaAtacando && !estaDandoDash) {
+            lerTeclasMovimento();
+        }
+
+        // ==========================================
+        // 4. LÓGICA SOULS-LIKE (DASH NO SOLTAR DA TECLA)
+        // ==========================================
+        boolean shiftPressionadoAgora = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+
+        // Se o dedo está na tecla, o cronômetro roda
+        if (shiftPressionadoAgora) {
+            tempoPressionadoShift += delta;
+        }
+
+        boolean shiftAcabouDeSerSolto = shiftEstavaPressionado && !shiftPressionadoAgora;
+
+        if (shiftAcabouDeSerSolto && tempoPressionadoShift < TEMPO_PARA_CORRER && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
+            estaDandoDash = true;
+            dashTimer = 0f;
+            cooldownDashTimer = 0f;
+
+            if (!inputDirecao.isZero()) {
+                direcaoDash.set(inputDirecao).nor();
+            } else {
+                switch (direcaoAtual) {
+                    case "N": direcaoDash.set(1, 1); break;
+                    case "S": direcaoDash.set(-1, -1); break;
+                    case "E": direcaoDash.set(1, -1); break;
+                    case "W": direcaoDash.set(-1, 1); break;
+                    case "NE": direcaoDash.set(1, 0); break;
+                    case "NW": direcaoDash.set(0, 1); break;
+                    case "SE": direcaoDash.set(0, -1); break;
+                    case "SW": direcaoDash.set(-1, 0); break;
+                }
+                direcaoDash.nor();
+            }
+        }
+
+        if (!shiftPressionadoAgora) {
+            tempoPressionadoShift = 0f;
+        }
+
+        shiftEstavaPressionado = shiftPressionadoAgora;
+
         float velocidadeAtual = velocidadeBase;
-        if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
-            velocidadeAtual = 2.5f;
+
+        if (estaDandoDash) {
+            dashTimer += delta;
+            velocidadeAtual = 25f;
+            inputDirecao.set(direcaoDash);
+
+            if (dashTimer >= duracaoDash) {
+                estaDandoDash = false;
+            }
+        } else {
+            if (shiftPressionadoAgora && tempoPressionadoShift >= TEMPO_PARA_CORRER) {
+                velocidadeAtual = 10f;
+            } else if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
+                velocidadeAtual = 2.5f;
+            }
         }
 
         float moveSpeed = velocidadeAtual * delta;
-        inputDirecao.set(0, 0);
-
-        if (!estaAtacando) {
-            lerTeclasMovimento();
-        }
 
         verificarAtaque();
         aplicarMovimentoComColisao(moveSpeed, pedras);
@@ -122,19 +192,23 @@ public class Player {
 
     private void lerTeclasMovimento() {
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            inputDirecao.x += 1; inputDirecao.y += 1;
+            inputDirecao.x += 1;
+            inputDirecao.y += 1;
             direcaoAtual = "N";
         }
         if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            inputDirecao.x -= 1; inputDirecao.y -= 1;
+            inputDirecao.x -= 1;
+            inputDirecao.y -= 1;
             direcaoAtual = "S";
         }
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            inputDirecao.x += 1; inputDirecao.y -= 1;
+            inputDirecao.x += 1;
+            inputDirecao.y -= 1;
             direcaoAtual = "E";
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            inputDirecao.x -= 1; inputDirecao.y += 1;
+            inputDirecao.x -= 1;
+            inputDirecao.y += 1;
             direcaoAtual = "W";
         }
 
@@ -153,18 +227,18 @@ public class Player {
     }
 
     private void verificarAtaque() {
-        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !estaAtacando) {
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && attackTimer >= tempoRecargaAtaque) {
             estaAtacando = true;
             attackTimer = 0f;
 
             float attackCenterX = posicaoMundo.x;
             float attackCenterY = posicaoMundo.y;
-            float alcance = 0.8f;
+            float alcance = 1f;
 
             switch (direcaoAtual) {
                 case "N":
-                    attackCenterX += alcance + 1f;
-                    attackCenterY += alcance + 1f;
+                    attackCenterX += alcance;
+                    attackCenterY += alcance ;
                     break;
                 case "S":
                     attackCenterX -= alcance;
@@ -179,19 +253,23 @@ public class Player {
                     attackCenterY += alcance;
                     break;
                 case "NE":
-                    attackCenterX += alcance;
+                    attackCenterX += alcance + 0.5f;
+                    attackCenterY -= alcance - 1f;
                     break;
                 case "NW":
-                    attackCenterY += alcance;
+                    attackCenterX -= alcance - 1f;
+                    attackCenterY += alcance + 0.5f;
                     break;
                 case "SE":
-                    attackCenterY -= alcance;
+                    attackCenterX -= alcance - 1f;
+                    attackCenterY -= alcance + 0.5f;
                     break;
                 case "SW":
-                    attackCenterX -= alcance;
+                    attackCenterX -= alcance + 0.5f;
+                    attackCenterY -= alcance - 1f;
                     break;
             }
-            hitboxAtaque.set(attackCenterX - 0.75f, attackCenterY - 0.75f, 1.5f, 1.5f);
+            hitboxAtaque.set(attackCenterX, attackCenterY, 1.5f, 1.5f);
         }
     }
 
@@ -232,16 +310,22 @@ public class Player {
     }
 
     public void atualizarLogicaAtaque(float delta, Array<Rectangle> pedras, Array<GameScreen.ObjetoRenderizavel> rendersPedras) {
-        if (estaAtacando) {
+        // O relógio sempre roda até atingir o tempo de recarga
+        if (attackTimer < tempoRecargaAtaque) {
             attackTimer += delta;
-            if (attackTimer >= duracaoAtaque) {
-                estaAtacando = false;
-            } else {
-                for (int i = pedras.size - 1; i >= 0; i--) {
-                    if (hitboxAtaque.overlaps(pedras.get(i))) {
-                        pedras.removeIndex(i);
-                        rendersPedras.removeIndex(i);
-                    }
+        }
+
+        // Se o tempo passou da duração do ataque (0.2s), desliga a hitbox e o "lock" de movimento
+        if (attackTimer >= duracaoAtaque) {
+            estaAtacando = false;
+        }
+
+        // A lógica de quebrar pedra só funciona enquanto está ativamente atacando (nos primeiros 0.2s)
+        if (estaAtacando) {
+            for (int i = pedras.size - 1; i >= 0; i--) {
+                if (hitboxAtaque.overlaps(pedras.get(i))) {
+                    pedras.removeIndex(i);
+                    rendersPedras.removeIndex(i);
                 }
             }
         }

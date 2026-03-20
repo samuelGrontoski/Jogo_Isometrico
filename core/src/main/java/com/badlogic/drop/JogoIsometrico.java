@@ -23,7 +23,8 @@ public class JogoIsometrico extends Game {
         font.setUseIntegerPositions(false);
         font.getData().setScale(viewport.getWorldHeight() / Gdx.graphics.getHeight());
 
-        this.setScreen(new MenuInicial(this));
+        //this.setScreen(new MenuInicial(this));
+        this.setScreen(new GameScreen(this));
     }
 
     public void render() {
