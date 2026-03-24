@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -32,11 +33,15 @@ public class GameScreen implements Screen {
     final float viewport_width = 640f;
     final float viewport_height = 360f;
 
+    OrthographicCamera uiCamera;
+    BitmapFont font;
+
     public static class ObjetoRenderizavel {
         public TextureRegion textura;
         public float drawX;
         public float drawY;
         public float sortY;
+        public float alpha = 1f;
     }
 
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
@@ -61,6 +66,16 @@ public class GameScreen implements Screen {
     // ==========================================
     Player player;
 
+    class SombraDash {
+        ObjetoRenderizavel render;
+        float tempoDeVida;
+        final float tempo_max_vida = 0.2f;
+    }
+
+    Array<SombraDash> sombrasAtivas = new Array<>();
+    float tempoCriarProximaSombra = 0f;
+    final float intervalo_sombras = 0.03f;
+
     // ==========================================
     // 4. ENTIDADES E OBJETOS (ENTITIES)
     // ==========================================
@@ -77,6 +92,11 @@ public class GameScreen implements Screen {
         viewport = new FitViewport(viewport_width, viewport_height, camera);
         batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
+
+        font = new BitmapFont();
+        font.getData().setScale(0.5f);
+        uiCamera = new OrthographicCamera();
+        uiCamera.setToOrtho(false, viewport_width, viewport_height);
 
         // --- Configura o Mapa ---
         mapaTexture = new Texture("mapa/mapa_simples.png");
@@ -134,6 +154,35 @@ public class GameScreen implements Screen {
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
+        if (player.estaDandoDash) {
+            tempoCriarProximaSombra -= delta;
+
+            if (tempoCriarProximaSombra <= 0) {
+                SombraDash novaSombra = new SombraDash();
+                novaSombra.render = new ObjetoRenderizavel();
+                novaSombra.render.textura = player.renderObj.textura;
+                novaSombra.render.drawX = player.renderObj.drawX;
+                novaSombra.render.drawY = player.renderObj.drawY;
+                novaSombra.render.sortY = player.renderObj.sortY;
+                novaSombra.render.alpha = 0.5f;
+                novaSombra.tempoDeVida = novaSombra.tempo_max_vida;
+
+                sombrasAtivas.add(novaSombra);
+                tempoCriarProximaSombra = intervalo_sombras;
+            }
+        }
+
+        for (int i = sombrasAtivas.size - 1; i >= 0; i--) {
+            SombraDash sombra = sombrasAtivas.get(i);
+            sombra.tempoDeVida -= delta;
+
+            if (sombra.tempoDeVida <= 0) {
+                sombrasAtivas.removeIndex(i);
+            } else {
+                sombra.render.alpha = (sombra.tempoDeVida / sombra.tempo_max_vida) * 0.5f;
+            }
+        }
+
         float offsetCameraY = viewport_height / 4f;
         camera.position.set(screenX, screenY + offsetCameraY, 0);
         camera.update();
@@ -154,6 +203,7 @@ public class GameScreen implements Screen {
 
         // Calcula a posição de desenho e decide qual frame mostrar
         player.atualizarRenderizacao(delta, screenX, screenY);
+        player.renderObj.alpha = 1f;
         listaDeDesenho.add(player.renderObj);
 
         // Prepara as pedras
@@ -171,6 +221,10 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(render);
         }
 
+        for (SombraDash sombra : sombrasAtivas) {
+            listaDeDesenho.add(sombra.render);
+        }
+
         // Ordena tudo o que vai desenhar com base no sortY
         listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
             @Override
@@ -181,9 +235,11 @@ public class GameScreen implements Screen {
 
         // Desenha
         for (ObjetoRenderizavel obj : listaDeDesenho) {
+            batch.setColor(1f, 1f, 1f, obj.alpha);
             batch.draw(obj.textura, obj.drawX, obj.drawY);
         }
 
+        batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
         // --- DEBUG DE COLISÃO ---
@@ -207,6 +263,21 @@ public class GameScreen implements Screen {
         }
 
         shapeRenderer.end();
+
+        // Desenho da interface (UI / GPS)
+        batch.setProjectionMatrix(uiCamera.combined);
+        batch.begin();
+
+        String textoGPS = String.format("MUNDO (Grade Cartesiana): X: %.1f | Y: %.1f\n" +
+                "TELA (Projecao Isom): X: %.1f | Y: %.1f\n" +
+                "DIRECAO: %s",
+            player.posicaoMundo.x, player.posicaoMundo.y,
+            screenX, screenY, player.direcaoAtual);
+
+        font.setColor(Color.YELLOW);
+        font.draw(batch, textoGPS, 10, viewport_height - 10);
+
+        batch.end();
     }
 
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
@@ -250,5 +321,6 @@ public class GameScreen implements Screen {
         pedraTexture.dispose();
         shapeRenderer.dispose();
         player.dispose();
+        font.dispose();
     }
 }

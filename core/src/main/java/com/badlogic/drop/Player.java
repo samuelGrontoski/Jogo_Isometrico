@@ -32,12 +32,12 @@ public class Player {
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
     public final float duracaoDash = 0.15f;
-    public float cooldownDashTimer = 1.0f;
+    public float cooldownDashTimer = 0.5f;
     public final float tempoRecargaDash = 1.0f;
     public Vector2 direcaoDash = new Vector2();
     public float tempoPressionadoShift = 0f;
     public boolean shiftEstavaPressionado = false;
-    public final float TEMPO_PARA_CORRER = 0.2f;
+    public final float tempo_para_correr = 0.2f;
 
     // --- Animações ---
     float stateTime;
@@ -123,19 +123,63 @@ public class Player {
             lerTeclasMovimento();
         }
 
-        // ==========================================
-        // 4. LÓGICA SOULS-LIKE (DASH NO SOLTAR DA TECLA)
-        // ==========================================
-        boolean shiftPressionadoAgora = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+//        // Lógica de Soulslike (dash no soltar da tecla)
+//        boolean shiftPressionadoAgora = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+//
+//        // Se o dedo está na tecla, o cronômetro roda
+//        if (shiftPressionadoAgora) {
+//            tempoPressionadoShift += delta;
+//        }
+//
+//        boolean shiftAcabouDeSerSolto = shiftEstavaPressionado && !shiftPressionadoAgora;
+//
+//        if (shiftAcabouDeSerSolto && tempoPressionadoShift < tempo_para_correr && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
+//            estaDandoDash = true;
+//            dashTimer = 0f;
+//            cooldownDashTimer = 0f;
+//
+//            if (!inputDirecao.isZero()) {
+//                direcaoDash.set(inputDirecao).nor();
+//            } else {
+//                switch (direcaoAtual) {
+//                    case "N":
+//                        direcaoDash.set(1, 1);
+//                        break;
+//                    case "S":
+//                        direcaoDash.set(-1, -1);
+//                        break;
+//                    case "E":
+//                        direcaoDash.set(1, -1);
+//                        break;
+//                    case "W":
+//                        direcaoDash.set(-1, 1);
+//                        break;
+//                    case "NE":
+//                        direcaoDash.set(1, 0);
+//                        break;
+//                    case "NW":
+//                        direcaoDash.set(0, 1);
+//                        break;
+//                    case "SE":
+//                        direcaoDash.set(0, -1);
+//                        break;
+//                    case "SW":
+//                        direcaoDash.set(-1, 0);
+//                        break;
+//                }
+//                direcaoDash.nor();
+//            }
+//        }
+//
+//        if (!shiftPressionadoAgora) {
+//            tempoPressionadoShift = 0f;
+//        }
+//
+//        shiftEstavaPressionado = shiftPressionadoAgora;
 
-        // Se o dedo está na tecla, o cronômetro roda
-        if (shiftPressionadoAgora) {
-            tempoPressionadoShift += delta;
-        }
+        // Dash e corrida em teclas separadas
 
-        boolean shiftAcabouDeSerSolto = shiftEstavaPressionado && !shiftPressionadoAgora;
-
-        if (shiftAcabouDeSerSolto && tempoPressionadoShift < TEMPO_PARA_CORRER && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
             estaDandoDash = true;
             dashTimer = 0f;
             cooldownDashTimer = 0f;
@@ -144,24 +188,34 @@ public class Player {
                 direcaoDash.set(inputDirecao).nor();
             } else {
                 switch (direcaoAtual) {
-                    case "N": direcaoDash.set(1, 1); break;
-                    case "S": direcaoDash.set(-1, -1); break;
-                    case "E": direcaoDash.set(1, -1); break;
-                    case "W": direcaoDash.set(-1, 1); break;
-                    case "NE": direcaoDash.set(1, 0); break;
-                    case "NW": direcaoDash.set(0, 1); break;
-                    case "SE": direcaoDash.set(0, -1); break;
-                    case "SW": direcaoDash.set(-1, 0); break;
+                    case "N":
+                        direcaoDash.set(1, 1);
+                        break;
+                    case "S":
+                        direcaoDash.set(-1, -1);
+                        break;
+                    case "E":
+                        direcaoDash.set(1, -1);
+                        break;
+                    case "W":
+                        direcaoDash.set(-1, 1);
+                        break;
+                    case "NE":
+                        direcaoDash.set(1, 0);
+                        break;
+                    case "NW":
+                        direcaoDash.set(0, 1);
+                        break;
+                    case "SE":
+                        direcaoDash.set(0, -1);
+                        break;
+                    case "SW":
+                        direcaoDash.set(-1, 0);
+                        break;
                 }
                 direcaoDash.nor();
             }
         }
-
-        if (!shiftPressionadoAgora) {
-            tempoPressionadoShift = 0f;
-        }
-
-        shiftEstavaPressionado = shiftPressionadoAgora;
 
         float velocidadeAtual = velocidadeBase;
 
@@ -174,7 +228,8 @@ public class Player {
                 estaDandoDash = false;
             }
         } else {
-            if (shiftPressionadoAgora && tempoPressionadoShift >= TEMPO_PARA_CORRER) {
+            //if (shiftPressionadoAgora && tempoPressionadoShift >= tempo_para_correr) {
+            if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
                 velocidadeAtual = 10f;
             } else if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
                 velocidadeAtual = 2.5f;
@@ -185,7 +240,7 @@ public class Player {
 
         verificarAtaque();
         aplicarMovimentoComColisao(moveSpeed, pedras);
-        restringirAosLimites(limiteX, limiteY);
+        restringirAosLimitesDoMapa(limiteX, limiteY);
 
         estaEmMovimento = !inputDirecao.isZero();
     }
@@ -303,7 +358,7 @@ public class Player {
         }
     }
 
-    private void restringirAosLimites(float limiteX, float limiteY) {
+    private void restringirAosLimitesDoMapa(float limiteX, float limiteY) {
         float margemPlayer = 1.5f;
         posicaoMundo.x = MathUtils.clamp(posicaoMundo.x, 0, limiteY - margemPlayer);
         posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
