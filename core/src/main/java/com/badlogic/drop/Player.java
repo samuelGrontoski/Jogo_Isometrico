@@ -18,7 +18,6 @@ public class Player {
     public String direcaoAtual = "SE";
     public float velocidadeBase = 7.5f;
     public boolean estaEmMovimento = false;
-    public boolean estavaEmMovimento = false;
 
     // --- Colisão e Combate ---
     public Rectangle hitbox;
@@ -123,62 +122,7 @@ public class Player {
             lerTeclasMovimento();
         }
 
-//        // Lógica de Soulslike (dash no soltar da tecla)
-//        boolean shiftPressionadoAgora = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
-//
-//        // Se o dedo está na tecla, o cronômetro roda
-//        if (shiftPressionadoAgora) {
-//            tempoPressionadoShift += delta;
-//        }
-//
-//        boolean shiftAcabouDeSerSolto = shiftEstavaPressionado && !shiftPressionadoAgora;
-//
-//        if (shiftAcabouDeSerSolto && tempoPressionadoShift < tempo_para_correr && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
-//            estaDandoDash = true;
-//            dashTimer = 0f;
-//            cooldownDashTimer = 0f;
-//
-//            if (!inputDirecao.isZero()) {
-//                direcaoDash.set(inputDirecao).nor();
-//            } else {
-//                switch (direcaoAtual) {
-//                    case "N":
-//                        direcaoDash.set(1, 1);
-//                        break;
-//                    case "S":
-//                        direcaoDash.set(-1, -1);
-//                        break;
-//                    case "E":
-//                        direcaoDash.set(1, -1);
-//                        break;
-//                    case "W":
-//                        direcaoDash.set(-1, 1);
-//                        break;
-//                    case "NE":
-//                        direcaoDash.set(1, 0);
-//                        break;
-//                    case "NW":
-//                        direcaoDash.set(0, 1);
-//                        break;
-//                    case "SE":
-//                        direcaoDash.set(0, -1);
-//                        break;
-//                    case "SW":
-//                        direcaoDash.set(-1, 0);
-//                        break;
-//                }
-//                direcaoDash.nor();
-//            }
-//        }
-//
-//        if (!shiftPressionadoAgora) {
-//            tempoPressionadoShift = 0f;
-//        }
-//
-//        shiftEstavaPressionado = shiftPressionadoAgora;
-
-        // Dash e corrida em teclas separadas
-
+        // Dash
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !estaDandoDash && !estaAtacando && cooldownDashTimer >= tempoRecargaDash) {
             estaDandoDash = true;
             dashTimer = 0f;
@@ -228,7 +172,6 @@ public class Player {
                 estaDandoDash = false;
             }
         } else {
-            //if (shiftPressionadoAgora && tempoPressionadoShift >= tempo_para_correr) {
             if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
                 velocidadeAtual = 10f;
             } else if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
@@ -388,11 +331,6 @@ public class Player {
 
     public void atualizarRenderizacao(float delta, float screenX, float screenY) {
         stateTime += delta;
-
-        if (estaEmMovimento != estavaEmMovimento) {
-            stateTime = 0f;
-            estavaEmMovimento = estaEmMovimento;
-        }
 
         TextureRegion currentFrame;
 
