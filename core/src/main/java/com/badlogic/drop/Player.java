@@ -34,9 +34,6 @@ public class Player {
     public float cooldownDashTimer = 0.5f;
     public final float tempoRecargaDash = 1.0f;
     public Vector2 direcaoDash = new Vector2();
-    public float tempoPressionadoShift = 0f;
-    public boolean shiftEstavaPressionado = false;
-    public final float tempo_para_correr = 0.2f;
 
     // --- Animações ---
     float stateTime;

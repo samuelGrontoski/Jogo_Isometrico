@@ -79,6 +79,7 @@ public class GameScreen implements Screen {
     // ==========================================
     // 4. ENTIDADES E OBJETOS (ENTITIES)
     // ==========================================
+    Array<Morcego> morcegos = new Array<>();
     Texture pedraTexture;
     TextureRegion pedraRegion;
     Array<Rectangle> hitboxesPedras = new Array<>();
@@ -105,7 +106,7 @@ public class GameScreen implements Screen {
         mapaOffsetX = 0;
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
 
-        // --- Gera as Pedras ---
+        // --- Inicializa as Pedras ---
         pedraTexture = new Texture("mapa/objetos/pedras/pedra_01.png");
         pedraRegion = new TextureRegion(pedraTexture);
 
@@ -124,6 +125,11 @@ public class GameScreen implements Screen {
         // --- Inicializa o Jogador ---
         Vector2 posicaoInicial = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
         player = new Player(posicaoInicial);
+
+        // --- Inicializa os Inimigos ---
+        morcegos.add(new Morcego(new Vector2(10f, -10f)));
+        morcegos.add(new Morcego(new Vector2(30f, -10f)));
+        morcegos.add(new Morcego(new Vector2(20f, -30f)));
     }
 
     @Override
@@ -206,6 +212,19 @@ public class GameScreen implements Screen {
         player.renderObj.alpha = 1f;
         listaDeDesenho.add(player.renderObj);
 
+        // Prepara os inimigos
+        for (Morcego morcego : morcegos) {
+            morcego.update(delta);
+
+            float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
+            float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
+
+            morcego.prepararZSorting(mScreenX, mScreenY);
+            morcego.renderObj.alpha = 1f;
+
+            listaDeDesenho.add(morcego.renderObj);
+        }
+
         // Prepara as pedras
         for (int i = 0; i < hitboxesPedras.size; i++) {
             Rectangle pedra = hitboxesPedras.get(i);
@@ -217,6 +236,7 @@ public class GameScreen implements Screen {
             render.drawX = pScreenX - (pedraTexture.getWidth() / 2f);
             render.drawY = pScreenY;
             render.sortY = pScreenY;
+            render.alpha = 1f;
 
             listaDeDesenho.add(render);
         }
@@ -250,6 +270,12 @@ public class GameScreen implements Screen {
         shapeRenderer.setColor(Color.GREEN);
         for (Rectangle pedra : hitboxesPedras) {
             desenharRetanguloIsometrico(pedra, shapeRenderer);
+        }
+
+        // Inimigos (Amarelo)
+        shapeRenderer.setColor(Color.YELLOW);
+        for (Morcego morcego : morcegos) {
+            desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
         }
 
         // Jogador (Vermelho)
@@ -322,5 +348,8 @@ public class GameScreen implements Screen {
         shapeRenderer.dispose();
         player.dispose();
         font.dispose();
+        for (Morcego morcego : morcegos) {
+            morcego.dispose();
+        }
     }
 }
