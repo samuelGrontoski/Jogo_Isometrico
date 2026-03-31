@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 
 import com.badlogic.drop.GameScreen.ObjetoRenderizavel;
 
@@ -13,6 +14,7 @@ public class Morcego {
     // --- Física e Mundo ---
     public Vector2 posicaoMundo;
     public Rectangle hitboxColisao;
+    public float velocidade = 3.5f;
 
     // --- Animação e Visual ---
     Texture sheet;
@@ -20,14 +22,14 @@ public class Morcego {
     float localStateTime;
     final int quantidade_frames = 4;
 
-    final float ELEVACAO_VISUAL = 24f;
+    final float elevacao_visual = 24f;
 
     public ObjetoRenderizavel renderObj;
 
     public Morcego(Vector2 posicaoInicial) {
         this.posicaoMundo = posicaoInicial;
         this.hitboxColisao = new Rectangle(0, 0, 1f, 1f);
-        atualizarHitboxLógica();
+        atualizarHitboxLogica();
 
         this.renderObj = new ObjetoRenderizavel();
         this.localStateTime = 0f;
@@ -49,15 +51,63 @@ public class Morcego {
         animacaoIdle.setPlayMode(Animation.PlayMode.LOOP);
     }
 
-    public void update(float delta) {
+    public void update(float delta, Vector2 posicaoPlayer, Array<Morcego> bando) {
         localStateTime += delta;
         renderObj.textura = animacaoIdle.getKeyFrame(localStateTime, true);
+
+        Vector2 direcaoAoPlayer = new Vector2(posicaoPlayer.x - posicaoMundo.x, posicaoPlayer.y - posicaoMundo.y);
+        float distanciaPlayer = direcaoAoPlayer.len();
+
+        Vector2 forcaTotal = new Vector2();
+
+        if (distanciaPlayer > 0.8f) {
+            forcaTotal.add(direcaoAoPlayer.nor());
+        }
+
+        Vector2 separacao = new Vector2();
+        int vizinhosMuitoPerto = 0;
+        float RAIO_DE_SEPARACAO = 1.2f;
+
+        for (int i = 0; i < bando.size; i++) {
+            Morcego outro = bando.get(i);
+            if (outro != this) {
+                float distanciaAmigo = posicaoMundo.dst(outro.posicaoMundo);
+                if (distanciaAmigo < RAIO_DE_SEPARACAO && distanciaAmigo > 0) {
+                    Vector2 repulsao = new Vector2(posicaoMundo.x - outro.posicaoMundo.x, posicaoMundo.y - outro.posicaoMundo.y);
+                    repulsao.nor();
+                    repulsao.scl(1f / distanciaAmigo);
+                    separacao.add(repulsao);
+                    vizinhosMuitoPerto++;
+                }
+            }
+        }
+
+        if (vizinhosMuitoPerto > 0) {
+            forcaTotal.add(separacao.scl(1.5f));
+        }
+
+        if (!forcaTotal.isZero()) {
+            if (forcaTotal.len() > 1f) {
+                forcaTotal.nor();
+            }
+
+            float multiplicadorVelocidade = 1f;
+
+            if (distanciaPlayer < 2.0f) {
+                multiplicadorVelocidade = Math.max(0.1f, distanciaPlayer - 0.8f);
+            }
+
+            posicaoMundo.x += forcaTotal.x * velocidade * multiplicadorVelocidade * delta;
+            posicaoMundo.y += forcaTotal.y * velocidade * multiplicadorVelocidade * delta;
+        }
+
+        atualizarHitboxLogica();
     }
 
-    private void atualizarHitboxLógica() {
+    private void atualizarHitboxLogica() {
         hitboxColisao.setPosition(
-            posicaoMundo.x + (hitboxColisao.width / 2f) + 1f,
-            posicaoMundo.y + (hitboxColisao.height / 2f) + 1f
+            posicaoMundo.x + (hitboxColisao.width / 2f) + 2f,
+            posicaoMundo.y + (hitboxColisao.height / 2f) + 2f
         );
     }
 
@@ -65,7 +115,7 @@ public class Morcego {
         renderObj.sortY = screenY;
 
         renderObj.drawX = screenX - (64f / 2f);
-        renderObj.drawY = screenY + ELEVACAO_VISUAL;
+        renderObj.drawY = screenY + elevacao_visual;
     }
 
     public void dispose() {

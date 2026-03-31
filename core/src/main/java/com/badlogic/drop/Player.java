@@ -108,7 +108,7 @@ public class Player {
         runAnimationSW.setPlayMode(Animation.PlayMode.LOOP);
     }
 
-    public void updateInput(float delta, Array<Rectangle> pedras, float limiteX, float limiteY) {
+    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, float limiteX, float limiteY) {
         if (cooldownDashTimer < tempoRecargaDash) {
             cooldownDashTimer += delta;
         }
@@ -179,7 +179,7 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque();
-        aplicarMovimentoComColisao(moveSpeed, pedras);
+        aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa);
         restringirAosLimitesDoMapa(limiteX, limiteY);
 
         estaEmMovimento = !inputDirecao.isZero();
@@ -268,7 +268,7 @@ public class Player {
         }
     }
 
-    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> pedras) {
+    private void aplicarMovimentoComColisao(float moveSpeed, Array<Pedra> pedrasDoMapa) {
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
             float oldX = posicaoMundo.x;
@@ -277,8 +277,8 @@ public class Player {
             // X
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            for (Rectangle pedra : pedras) {
-                if (hitbox.overlaps(pedra)) {
+            for (Pedra pedra : pedrasDoMapa) {
+                if (hitbox.overlaps(pedra.hitboxColisao)) {
                     posicaoMundo.x = oldX;
                     atualizarHitbox();
                     break;
@@ -288,8 +288,8 @@ public class Player {
             // Y
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            for (Rectangle pedra : pedras) {
-                if (hitbox.overlaps(pedra)) {
+            for (Pedra pedra : pedrasDoMapa) {
+                if (hitbox.overlaps(pedra.hitboxColisao)) {
                     posicaoMundo.y = oldY;
                     atualizarHitbox();
                     break;
@@ -304,7 +304,7 @@ public class Player {
         posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
     }
 
-    public void atualizarLogicaAtaque(float delta, Array<Rectangle> pedras, Array<GameScreen.ObjetoRenderizavel> rendersPedras) {
+    public void atualizarLogicaAtaque(float delta, Array<Pedra> pedrasDoMapa) {
         // O relógio sempre roda até atingir o tempo de recarga
         if (attackTimer < tempoRecargaAtaque) {
             attackTimer += delta;
@@ -317,10 +317,9 @@ public class Player {
 
         // A lógica de quebrar pedra só funciona enquanto está ativamente atacando (nos primeiros 0.2s)
         if (estaAtacando) {
-            for (int i = pedras.size - 1; i >= 0; i--) {
-                if (hitboxAtaque.overlaps(pedras.get(i))) {
-                    pedras.removeIndex(i);
-                    rendersPedras.removeIndex(i);
+            for (int i = pedrasDoMapa.size - 1; i >= 0; i--) {
+                if (hitboxAtaque.overlaps(pedrasDoMapa.get(i).hitboxColisao)) {
+                    pedrasDoMapa.removeIndex(i);
                 }
             }
         }
