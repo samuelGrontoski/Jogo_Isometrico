@@ -66,13 +66,13 @@ public class Morcego {
 
         Vector2 separacao = new Vector2();
         int vizinhosMuitoPerto = 0;
-        float RAIO_DE_SEPARACAO = 1.2f;
+        float raio_de_separacao = 1.2f;
 
         for (int i = 0; i < bando.size; i++) {
             Morcego outro = bando.get(i);
             if (outro != this) {
                 float distanciaAmigo = posicaoMundo.dst(outro.posicaoMundo);
-                if (distanciaAmigo < RAIO_DE_SEPARACAO && distanciaAmigo > 0) {
+                if (distanciaAmigo < raio_de_separacao && distanciaAmigo > 0) {
                     Vector2 repulsao = new Vector2(posicaoMundo.x - outro.posicaoMundo.x, posicaoMundo.y - outro.posicaoMundo.y);
                     repulsao.nor();
                     repulsao.scl(1f / distanciaAmigo);
