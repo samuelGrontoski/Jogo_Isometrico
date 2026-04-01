@@ -74,7 +74,7 @@ public class Player {
     }
 
     private void carregarAnimacoes() {
-        // --- IDLE ---
+        // Idle
         idleSheetSE = new Texture("personagem/personagem_idle_se.png");
         TextureRegion[][] tmpSE = TextureRegion.split(idleSheetSE, idleSheetSE.getWidth() / quantidade_frames_idle, idleSheetSE.getHeight());
         TextureRegion[] idleFramesSE = new TextureRegion[quantidade_frames_idle];
@@ -92,7 +92,7 @@ public class Player {
         duracaoAnimacaoIdle = idleAnimationSE.getAnimationDuration();
         tempo_ciclo_idle = duracaoAnimacaoIdle + tempo_espera_idle;
 
-        // --- CORRENDO ---
+        // Correndo
         runSheetSE = new Texture("personagem/personagem_run_se.png");
         TextureRegion[][] tmpRunSE = TextureRegion.split(runSheetSE, runSheetSE.getWidth() / quantidade_frames_run, runSheetSE.getHeight());
         TextureRegion[] runFramesSE = new TextureRegion[quantidade_frames_run];
