@@ -12,14 +12,14 @@ import com.badlogic.gdx.utils.Array;
 
 public class Player {
 
-    // --- Física e Movimento ---
+    // Física e Movimento
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
     public String direcaoAtual = "SE";
     public float velocidadeBase = 7.5f;
     public boolean estaEmMovimento = false;
 
-    // --- Colisão e Combate ---
+    // Colisão e Combate
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
     public boolean estaAtacando = false;
@@ -27,7 +27,7 @@ public class Player {
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
 
-    // --- Dash ---
+    // Dash
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
     public final float duracaoDash = 0.15f;
@@ -35,7 +35,7 @@ public class Player {
     public final float tempoRecargaDash = 1.0f;
     public Vector2 direcaoDash = new Vector2();
 
-    // --- Animações ---
+    // Animações
     float stateTime;
 
     // Idle
@@ -59,7 +59,6 @@ public class Player {
     Texture runSheetSW;
     Animation<TextureRegion> runAnimationSW;
 
-    // Pacote para o Z-Sorting
     public GameScreen.ObjetoRenderizavel renderObj;
 
     public Player(Vector2 posicaoInicial) {
@@ -304,22 +303,25 @@ public class Player {
         posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
     }
 
-    public void atualizarLogicaAtaque(float delta, Array<Pedra> pedrasDoMapa) {
-        // O relógio sempre roda até atingir o tempo de recarga
+    public void atualizarLogicaAtaque(float delta, Array<Pedra> pedrasDoMapa, Array<Morcego> morcegos) {
         if (attackTimer < tempoRecargaAtaque) {
             attackTimer += delta;
         }
 
-        // Se o tempo passou da duração do ataque (0.2s), desliga a hitbox e o "lock" de movimento
         if (attackTimer >= duracaoAtaque) {
             estaAtacando = false;
         }
 
-        // A lógica de quebrar pedra só funciona enquanto está ativamente atacando (nos primeiros 0.2s)
         if (estaAtacando) {
-            for (int i = pedrasDoMapa.size - 1; i >= 0; i--) {
-                if (hitboxAtaque.overlaps(pedrasDoMapa.get(i).hitboxColisao)) {
-                    pedrasDoMapa.removeIndex(i);
+//            for (int i = pedrasDoMapa.size - 1; i >= 0; i--) {
+//                if (hitboxAtaque.overlaps(pedrasDoMapa.get(i).hitboxColisao)) {
+//                    pedrasDoMapa.removeIndex(i);
+//                }
+//            }
+
+            for (Morcego morcego : morcegos) {
+                if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
+                    morcego.tomarDano();
                 }
             }
         }

@@ -22,7 +22,7 @@ import java.util.Comparator;
 public class GameScreen implements Screen {
 
     // ==========================================
-    // 1. SISTEMA E RENDERIZAÇÃO BASE (CORE)
+    // SISTEMA E RENDERIZAÇÃO BASE (CORE)
     // ==========================================
     final JogoIsometrico game;
     SpriteBatch batch;
@@ -47,7 +47,7 @@ public class GameScreen implements Screen {
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
     // ==========================================
-    // 2. MUNDO E MAPA (AMBIENTE)
+    // MUNDO E MAPA (AMBIENTE)
     // ==========================================
     Texture mapaTexture;
     final float tile_width = 32f;
@@ -61,7 +61,7 @@ public class GameScreen implements Screen {
     float screenY;
 
     // ==========================================
-    // 3. JOGADOR E EFEITOS (PLAYER)
+    // JOGADOR E EFEITOS (PLAYER)
     // ==========================================
     Player player;
 
@@ -76,9 +76,11 @@ public class GameScreen implements Screen {
     final float intervalo_sombras = 0.03f;
 
     // ==========================================
-    // 4. ENTIDADES E OBJETOS (ENTITIES)
+    // ENTIDADES E OBJETOS (ENTITIES)
     // ==========================================
     Array<Morcego> morcegos = new Array<>();
+    Texture textureMorcegoFly;
+
     Array<Pedra> pedrasDoMapa = new Array<>();
     Texture pedraTexture;
     int quantidade_pedras = 50;
@@ -96,34 +98,36 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiCamera.setToOrtho(false, viewport_width, viewport_height);
 
-        // --- Configura o Mapa ---
+        // Configura o Mapa
         mapaTexture = new Texture("mapa/mapa_simples.png");
         limiteMapaX = 50f;
         limiteMapaY = 50f;
         mapaOffsetX = 0;
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
 
-        // --- Inicializa as Pedras ---
+        // Inicializa as Pedras
         pedraTexture = new Texture("mapa/objetos/pedras/pedra_01.png");
         TextureRegion pedraRegion = new TextureRegion(pedraTexture);
 
         for (int i = 0; i < quantidade_pedras; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
             float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-
-            // Criamos o Objeto Pedra e passamos a textura compartilhada
             Pedra novaPedra = new Pedra(new Vector2(px, py), pedraRegion);
             pedrasDoMapa.add(novaPedra);
         }
 
-        // --- Inicializa o Jogador ---
+        // Inicializa o Jogador
         Vector2 posicaoInicial = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
         player = new Player(posicaoInicial);
 
-        // --- Inicializa os Inimigos ---
-        morcegos.add(new Morcego(new Vector2(10f, -10f)));
-        morcegos.add(new Morcego(new Vector2(30f, -10f)));
-        morcegos.add(new Morcego(new Vector2(20f, -30f)));
+        // Inicializa os Inimigos
+        textureMorcegoFly = new Texture("inimigos/morcego/morcego_fly.png");
+
+        for (int i = 0; i < 10; i++) {
+            float px = MathUtils.random(2f, limiteMapaY - 2f);
+            float py = MathUtils.random(-limiteMapaX + 2f, -2f);
+            morcegos.add(new Morcego(new Vector2(px, py), textureMorcegoFly));
+        }
     }
 
     @Override
@@ -147,7 +151,7 @@ public class GameScreen implements Screen {
     }
 
     private void logic(float delta) {
-        player.atualizarLogicaAtaque(delta, pedrasDoMapa);
+        player.atualizarLogicaAtaque(delta, pedrasDoMapa, morcegos);
 
         // Converter Coordenadas Matemáticas do Jogador para a Tela (Para a câmera seguir)
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
@@ -196,7 +200,7 @@ public class GameScreen implements Screen {
         batch.begin();
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
-        // --- Z-SORTING ---
+        // Z-SORTING
         listaDeDesenho.clear();
 
         // Calcula a posição de desenho e decide qual frame mostrar
@@ -206,15 +210,17 @@ public class GameScreen implements Screen {
 
         // Prepara os inimigos
         for (Morcego morcego : morcegos) {
-            morcego.update(delta, player.posicaoMundo, morcegos);
+            morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
 
-            float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
-            float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
+            if (morcego.isAtivo) {
+                float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
+                float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
 
-            morcego.prepararZSorting(mScreenX, mScreenY);
-            morcego.renderObj.alpha = 1f;
+                morcego.prepararZSorting(mScreenX, mScreenY);
+                morcego.renderObj.alpha = 1f;
 
-            listaDeDesenho.add(morcego.renderObj);
+                listaDeDesenho.add(morcego.renderObj);
+            }
         }
 
         // Prepara as pedras
@@ -243,7 +249,7 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
-        // --- DEBUG DE COLISÃO ---
+        // DEBUG DE COLISÃO
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
@@ -256,7 +262,9 @@ public class GameScreen implements Screen {
         // Inimigos (Amarelo)
         shapeRenderer.setColor(Color.RED);
         for (Morcego morcego : morcegos) {
-            desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
+            if (morcego.isAtivo) {
+                desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
+            }
         }
 
         // Jogador (Vermelho)
@@ -332,5 +340,6 @@ public class GameScreen implements Screen {
         for (Morcego morcego : morcegos) {
             morcego.dispose();
         }
+        textureMorcegoFly.dispose();
     }
 }

@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
@@ -11,12 +12,17 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.drop.GameScreen.ObjetoRenderizavel;
 
 public class Morcego {
-    // --- Física e Mundo ---
+    // Pooling e Combate
+    public boolean isAtivo = true;
+    public float timerMorto = 0f;
+    public final float tempo_respawn = 3.0f;
+
+    // Física e Mundo
     public Vector2 posicaoMundo;
     public Rectangle hitboxColisao;
     public float velocidade = 3.5f;
 
-    // --- Animação e Visual ---
+    // Animação e Visual
     Texture sheet;
     Animation<TextureRegion> animacaoIdle;
     float localStateTime;
@@ -26,7 +32,7 @@ public class Morcego {
 
     public ObjetoRenderizavel renderObj;
 
-    public Morcego(Vector2 posicaoInicial) {
+    public Morcego(Vector2 posicaoInicial, Texture texturaPronta) {
         this.posicaoMundo = posicaoInicial;
         this.hitboxColisao = new Rectangle(0, 0, 1f, 1f);
         atualizarHitboxLogica();
@@ -34,12 +40,11 @@ public class Morcego {
         this.renderObj = new ObjetoRenderizavel();
         this.localStateTime = 0f;
 
+        this.sheet = texturaPronta;
         carregarAnimacoes();
     }
 
     private void carregarAnimacoes() {
-        sheet = new Texture("inimigos/morcego/morcego_fly.png");
-
         int larguraFrame = sheet.getWidth() / quantidade_frames;
         int alturaFrame = sheet.getHeight();
 
@@ -51,7 +56,15 @@ public class Morcego {
         animacaoIdle.setPlayMode(Animation.PlayMode.LOOP);
     }
 
-    public void update(float delta, Vector2 posicaoPlayer, Array<Morcego> bando) {
+    public void update(float delta, Vector2 posicaoPlayer, Array<Morcego> bando, float limiteX, float limiteY) {
+        if (!isAtivo) {
+            timerMorto += delta;
+            if (timerMorto >= tempo_respawn) {
+                respawn(limiteX, limiteY);
+            }
+            return;
+        }
+
         localStateTime += delta;
         renderObj.textura = animacaoIdle.getKeyFrame(localStateTime, true);
 
@@ -104,6 +117,20 @@ public class Morcego {
         atualizarHitboxLogica();
     }
 
+    public void tomarDano() {
+        isAtivo = false;
+        timerMorto = 0f;
+    }
+
+    private void respawn(float limiteX, float limiteY) {
+        float px = MathUtils.random(2f, limiteY - 2f);
+        float py = MathUtils.random(-limiteX + 2f, -2f);
+
+        posicaoMundo.set(px, py);
+        atualizarHitboxLogica();
+        isAtivo = true;
+    }
+
     private void atualizarHitboxLogica() {
         hitboxColisao.setPosition(
             posicaoMundo.x + (hitboxColisao.width / 2f) + 2f,
@@ -119,6 +146,6 @@ public class Morcego {
     }
 
     public void dispose() {
-        sheet.dispose();
+
     }
 }
