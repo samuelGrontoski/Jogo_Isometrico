@@ -35,7 +35,7 @@ O foco deste projeto é a construção de uma engine isométrica do zero.
 
 2. Clone este repositório:
    ```bash
-   git clone [https://github.com/SEU_USUARIO/nome-do-seu-repositorio.git](https://github.com/SEU_USUARIO/nome-do-seu-repositorio.git)
+   git clone https://github.com/samuelGrontoski/Jogo_Isometrico.git
 
 3. Importe o projeto na sua IDE favorita (IntelliJ IDEA, Eclipse ou Android Studio) como um projeto Gradle.
 
