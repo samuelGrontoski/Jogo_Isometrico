@@ -1,33 +1,46 @@
-# Teste_Jogo_Isometrico
+# ⚔️ Projeto de Action-RPG Isométrico (LibGDX)
 
-A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
+Um protótipo de jogo de ação e exploração em visão isométrica 2D, desenvolvido em Java utilizando o framework **LibGDX**. 
 
-This project was generated with a template including simple application launchers and an `ApplicationAdapter` extension that draws libGDX logo.
+O foco deste projeto é a construção de uma engine isométrica do zero.
 
-## Platforms
+---
 
-- `core`: Main module with the application logic shared by all platforms.
-- `lwjgl3`: Primary desktop platform using LWJGL3; was called 'desktop' in older docs.
+## 🛠️ Tecnologias Utilizadas
+* **Linguagem:** Java 17+
+* **Framework:** [LibGDX](https://libgdx.com/) (Desktop/LWJGL3)
 
-## Gradle
+---
 
-This project uses [Gradle](https://gradle.org/) to manage dependencies.
-The Gradle wrapper was included, so you can run Gradle tasks using `gradlew.bat` or `./gradlew` commands.
-Useful Gradle tasks and flags:
+## ⚙️ Técnicas Aplicadas
 
-- `--continue`: when using this flag, errors will not stop the tasks from running.
-- `--daemon`: thanks to this flag, Gradle daemon will be used to run chosen tasks.
-- `--offline`: when using this flag, cached dependency archives will be used.
-- `--refresh-dependencies`: this flag forces validation of all dependencies. Useful for snapshot versions.
-- `build`: builds sources and archives of every project.
-- `cleanEclipse`: removes Eclipse project data.
-- `cleanIdea`: removes IntelliJ project data.
-- `clean`: removes `build` folders, which store compiled classes and built archives.
-- `eclipse`: generates Eclipse project data.
-- `idea`: generates IntelliJ project data.
-- `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
-- `lwjgl3:run`: starts the application.
-- `test`: runs unit tests (if any).
+---
 
-Note that most tasks that are not specific to a single project can be run with `name:` prefix, where the `name` should be replaced with the ID of a specific project.
-For example, `core:clean` removes `build` folder only from the `core` project.
+## 🎮 Controles
+
+| Ação | Tecla / Comando |
+| :--- | :--- |
+| **Mover** | `W`, `A`, `S`, `D` |
+| **Andar Devagar** | Segurar `CTRL` |
+| **Correr** | Segurar `SHIFT` |
+| **Esquiva** | `Espaço` |
+| **Atacar** | `Botão Esquerdo do Mouse` |
+| **Sair do Jogo** | `ESC` |
+
+---
+
+## 🚀 Como Executar o Projeto
+
+1. Certifique-se de ter o **Java JDK** instalado na sua máquina.
+
+2. Clone este repositório:
+   ```bash
+   git clone [https://github.com/SEU_USUARIO/nome-do-seu-repositorio.git](https://github.com/SEU_USUARIO/nome-do-seu-repositorio.git)
+
+3. Importe o projeto na sua IDE favorita (IntelliJ IDEA, Eclipse ou Android Studio) como um projeto Gradle.
+
+4. Execute a classe `Lwjgl3Launcher.java` (localizada no pacote lwjgl3) para iniciar o jogo.
+
+---
+
+Desenvolvido com ☕ e LibGDX.
