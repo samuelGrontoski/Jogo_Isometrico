@@ -1,7 +1,6 @@
-package com.badlogic.drop;
+package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -15,154 +14,151 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.Comparator;
 
 public class GameScreen implements Screen {
 
-    // ==========================================
-    // SISTEMA E RENDERIZAÇÃO BASE (CORE)
-    // ==========================================
     final JogoIsometrico game;
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
 
+    // Câmera e Viewport do Mundo Isométrico
     OrthographicCamera camera;
     Viewport viewport;
     final float viewport_width = 640f;
     final float viewport_height = 360f;
 
+    // Câmera e Viewport Fixos para a Interface (UI) e Debug
     OrthographicCamera uiCamera;
+    Viewport uiViewport;
     BitmapFont font;
 
-    public static class ObjetoRenderizavel {
-        public TextureRegion textura;
-        public float drawX;
-        public float drawY;
-        public float sortY;
-        public float alpha = 1f;
-    }
+    // Estados controladores de Debug
+    private boolean mostrarDebugInfo = false;
+    private boolean mostrarHitboxes = false;
 
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
-    // ==========================================
-    // MUNDO E MAPA (AMBIENTE)
-    // ==========================================
     Texture mapaTexture;
     final float tile_width = 32f;
     final float tile_height = 16f;
-    float limiteMapaX;
-    float limiteMapaY;
-    float mapaOffsetX;
+    float limiteMapaX = 50f;
+    float limiteMapaY = 50f;
+    float mapaOffsetX = 0;
     float mapaOffsetY;
 
-    float screenX;
-    float screenY;
+    float screenX, screenY;
 
-    // ==========================================
-    // JOGADOR E EFEITOS (PLAYER)
-    // ==========================================
     Player player;
+    PlayerController playerController;
 
-    class SombraDash {
-        ObjetoRenderizavel render;
-        float tempoDeVida;
-        final float tempo_max_vida = 0.2f;
-    }
-
+    private final Pool<SombraDash> sombraPool = new Pool<SombraDash>() {
+        @Override
+        protected SombraDash newObject() { return new SombraDash(); }
+    };
     Array<SombraDash> sombrasAtivas = new Array<>();
     float tempoCriarProximaSombra = 0f;
     final float intervalo_sombras = 0.03f;
 
-    // ==========================================
-    // ENTIDADES E OBJETOS (ENTITIES)
-    // ==========================================
+    private final Pool<Morcego> morcegoPool = new Pool<Morcego>() {
+        @Override
+        protected Morcego newObject() { return new Morcego(); }
+    };
     Array<Morcego> morcegos = new Array<>();
-    Texture textureMorcegoFly;
-
     Array<Pedra> pedrasDoMapa = new Array<>();
-    Texture pedraTexture;
     int quantidade_pedras = 50;
 
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
+        this.batch = game.batch;
+        this.font = game.font;
 
+        // Setup do Mundo
         camera = new OrthographicCamera();
         viewport = new FitViewport(viewport_width, viewport_height, camera);
-        batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
 
-        font = new BitmapFont();
-        font.getData().setScale(0.5f);
+        // Setup Exclusivo da UI (Interface Fixo) - CORRIGIDO
         uiCamera = new OrthographicCamera();
-        uiCamera.setToOrtho(false, viewport_width, viewport_height);
+        uiViewport = new FitViewport(viewport_width, viewport_height, uiCamera);
 
-        // Configura o Mapa
-        mapaTexture = new Texture("mapa/mapa_simples.png");
-        limiteMapaX = 50f;
-        limiteMapaY = 50f;
-        mapaOffsetX = 0;
+        mapaTexture = game.assets.get("mapa/mapa_simples.png", Texture.class);
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
 
-        // Inicializa as Pedras
-        pedraTexture = new Texture("mapa/objetos/pedras/pedra_01.png");
-        TextureRegion pedraRegion = new TextureRegion(pedraTexture);
-
+        TextureRegion pedraRegion = new TextureRegion(game.assets.get("mapa/objetos/pedras/pedra_01.png", Texture.class));
         for (int i = 0; i < quantidade_pedras; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
             float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-            Pedra novaPedra = new Pedra(new Vector2(px, py), pedraRegion);
-            pedrasDoMapa.add(novaPedra);
+            pedrasDoMapa.add(new Pedra(new Vector2(px, py), pedraRegion));
         }
 
-        // Inicializa o Jogador
+        playerController = new PlayerController();
         Vector2 posicaoInicial = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
-        player = new Player(posicaoInicial);
+        player = new Player(posicaoInicial, game.assets, playerController);
 
-        // Inicializa os Inimigos
-        textureMorcegoFly = new Texture("inimigos/morcego/morcego_fly.png");
-
+        Texture textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
         for (int i = 0; i < 10; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
             float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-            morcegos.add(new Morcego(new Vector2(px, py), textureMorcegoFly));
+            Morcego m = morcegoPool.obtain();
+            m.init(new Vector2(px, py), textureMorcegoFly);
+            morcegos.add(m);
         }
     }
 
     @Override
+    public void show() {
+        // Melhores práticas do libGDX: Adicionamos o InputProcessor
+        // no show() para garantir que a tela foque ao ser carregada.
+        Gdx.input.setInputProcessor(playerController);
+    }
+
+    @Override
     public void render(float delta) {
-        if (!input(delta)) {
-            return;
-        }
+        if (!input(delta)) return;
         logic(delta);
         draw(delta);
     }
 
     private boolean input(float delta) {
-        player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY);
-
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+        if (playerController.escapePressed) {
             game.setScreen(new MenuInicial(game));
             dispose();
             return false;
         }
+
+        // LÓGICA DE ALTERNÂNCIA DE ECRÃ COMPLETO (F11)
+        if (playerController.consumeFullscreenToggle()) {
+            if (Gdx.graphics.isFullscreen()) {
+                // Se estiver em Tela Cheia, reverte para o modo Janela
+                Gdx.graphics.setWindowedMode(640, 360);
+            } else {
+                // Caso contrário, ativa a Tela Cheia baseando-se no monitor atual
+                Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+            }
+        }
+
+        // Toggles das interfaces de debug
+        if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
+        if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
+
+        player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY);
         return true;
     }
 
     private void logic(float delta) {
-        player.atualizarLogicaAtaque(delta, pedrasDoMapa, morcegos);
+        player.atualizarLogicaAtaque(delta, morcegos);
 
-        // Converter Coordenadas Matemáticas do Jogador para a Tela (Para a câmera seguir)
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
         if (player.estaDandoDash) {
             tempoCriarProximaSombra -= delta;
-
             if (tempoCriarProximaSombra <= 0) {
-                SombraDash novaSombra = new SombraDash();
-                novaSombra.render = new ObjetoRenderizavel();
+                SombraDash novaSombra = sombraPool.obtain();
                 novaSombra.render.textura = player.renderObj.textura;
                 novaSombra.render.drawX = player.renderObj.drawX;
                 novaSombra.render.drawY = player.renderObj.drawY;
@@ -178,9 +174,9 @@ public class GameScreen implements Screen {
         for (int i = sombrasAtivas.size - 1; i >= 0; i--) {
             SombraDash sombra = sombrasAtivas.get(i);
             sombra.tempoDeVida -= delta;
-
             if (sombra.tempoDeVida <= 0) {
                 sombrasAtivas.removeIndex(i);
+                sombraPool.free(sombra);
             } else {
                 sombra.render.alpha = (sombra.tempoDeVida / sombra.tempo_max_vida) * 0.5f;
             }
@@ -195,35 +191,28 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // 1. RENDERIZAÇÃO DO MUNDO
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
-        // Z-SORTING
         listaDeDesenho.clear();
-
-        // Calcula a posição de desenho e decide qual frame mostrar
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
         listaDeDesenho.add(player.renderObj);
 
-        // Prepara os inimigos
         for (Morcego morcego : morcegos) {
             morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
-
             if (morcego.isAtivo) {
                 float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
                 float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
-
                 morcego.prepararZSorting(mScreenX, mScreenY);
                 morcego.renderObj.alpha = 1f;
-
                 listaDeDesenho.add(morcego.renderObj);
             }
         }
 
-        // Prepara as pedras
         for (Pedra pedra : pedrasDoMapa) {
             pedra.prepararZSorting(tile_width, tile_height);
             listaDeDesenho.add(pedra.renderObj);
@@ -233,7 +222,6 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(sombra.render);
         }
 
-        // Ordena tudo o que vai desenhar com base no sortY
         listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
             @Override
             public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
@@ -241,7 +229,6 @@ public class GameScreen implements Screen {
             }
         });
 
-        // Desenha
         for (ObjetoRenderizavel obj : listaDeDesenho) {
             batch.setColor(1f, 1f, 1f, obj.alpha);
             batch.draw(obj.textura, obj.drawX, obj.drawY);
@@ -249,50 +236,53 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
-        // DEBUG DE COLISÃO
-        shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        // 2. RENDERIZAÇÃO DAS HITBOXES
+        if (mostrarHitboxes) {
+            shapeRenderer.setProjectionMatrix(camera.combined);
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
-        // Pedras (Verde)
-        shapeRenderer.setColor(Color.YELLOW);
-        for (Pedra pedra : pedrasDoMapa) {
-            desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
-        }
-
-        // Inimigos (Amarelo)
-        shapeRenderer.setColor(Color.RED);
-        for (Morcego morcego : morcegos) {
-            if (morcego.isAtivo) {
-                desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
+            shapeRenderer.setColor(Color.YELLOW);
+            for (Pedra pedra : pedrasDoMapa) {
+                desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
             }
+
+            shapeRenderer.setColor(Color.RED);
+            for (Morcego morcego : morcegos) {
+                if (morcego.isAtivo) {
+                    desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
+                }
+            }
+
+            shapeRenderer.setColor(Color.GREEN);
+            desenharRetanguloIsometrico(player.hitbox, shapeRenderer);
+
+            if (player.estaAtacando) {
+                shapeRenderer.setColor(Color.BLUE);
+                desenharRetanguloIsometrico(player.hitboxAtaque, shapeRenderer);
+            }
+            shapeRenderer.end();
         }
 
-        // Jogador (Vermelho)
-        shapeRenderer.setColor(Color.GREEN);
-        desenharRetanguloIsometrico(player.hitbox, shapeRenderer);
+        // 3. RENDERIZAÇÃO DO OVERLAY DE DEBUG (F3)
+        if (mostrarDebugInfo) {
+            uiViewport.apply();
+            batch.setProjectionMatrix(uiCamera.combined);
+            batch.begin();
 
-        // Ataque (Azul)
-        if (player.estaAtacando) {
-            shapeRenderer.setColor(Color.BLUE);
-            desenharRetanguloIsometrico(player.hitboxAtaque, shapeRenderer);
+            String textoOverlay = String.format(
+                "FPS: %d\n" +
+                    "POS MUNDO:\nX: %.2f | Y: %.2f\n" +
+                    "POS TELA:\nX: %.1f | Y: %.1f",
+                Gdx.graphics.getFramesPerSecond(),
+                player.posicaoMundo.x, player.posicaoMundo.y,
+                screenX, screenY
+            );
+
+            font.setColor(Color.GREEN);
+            // Desenha a partir do topo para não ficar cortado se a janela mudar
+            font.draw(batch, textoOverlay, 15, viewport_height - 15);
+            batch.end();
         }
-
-        shapeRenderer.end();
-
-        // Desenho da interface (UI / GPS)
-        batch.setProjectionMatrix(uiCamera.combined);
-        batch.begin();
-
-        String textoGPS = String.format("MUNDO (Grade Cartesiana): X: %.1f | Y: %.1f\n" +
-                "TELA (Projecao Isom): X: %.1f | Y: %.1f\n" +
-                "DIRECAO: %s",
-            player.posicaoMundo.x, player.posicaoMundo.y,
-            screenX, screenY, player.direcaoAtual);
-
-        font.setColor(Color.YELLOW);
-        font.draw(batch, textoGPS, 10, viewport_height - 10);
-
-        batch.end();
     }
 
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
@@ -315,31 +305,15 @@ public class GameScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, false);
-
+        uiViewport.update(width, height, true); // Agora uiViewport existe e foi corretamente instanciado!
     }
-    @Override
-    public void show() {}
 
-    @Override
-    public void hide() {}
-
-    @Override
-    public void pause() {}
-
-    @Override
-    public void resume() {}
+    @Override public void hide() {}
+    @Override public void pause() {}
+    @Override public void resume() {}
 
     @Override
     public void dispose() {
-        mapaTexture.dispose();
-        batch.dispose();
-        pedraTexture.dispose();
         shapeRenderer.dispose();
-        player.dispose();
-        font.dispose();
-        for (Morcego morcego : morcegos) {
-            morcego.dispose();
-        }
-        textureMorcegoFly.dispose();
     }
 }

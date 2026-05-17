@@ -1,0 +1,60 @@
+package com.badlogic.outOfTheAbyss;
+
+import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+
+public class JogoIsometrico extends Game {
+    public SpriteBatch batch;
+    public BitmapFont font;
+    public FitViewport viewport;
+    public AssetManager assets;
+
+    @Override
+    public void create() {
+        batch = new SpriteBatch();
+        font = new BitmapFont();
+        viewport = new FitViewport(640, 360);
+
+        font.setUseIntegerPositions(false);
+        font.getData().setScale(viewport.getWorldHeight() / Gdx.graphics.getHeight());
+
+        assets = new AssetManager();
+        carregarAssets();
+        assets.finishLoading(); // Bloqueia até carregar tudo (Idealmente, use uma tela de carregamento)
+
+        this.setScreen(new MenuInicial(this));
+    }
+
+    private void carregarAssets() {
+        assets.load("background/tela-menu.png", Texture.class);
+        assets.load("botao/botao_jogar.png", Texture.class);
+        assets.load("botao/botao_sair.png", Texture.class);
+
+        assets.load("mapa/mapa_simples.png", Texture.class);
+        assets.load("mapa/objetos/pedras/pedra_01.png", Texture.class);
+
+        assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
+
+        assets.load("personagem/personagem_idle_se.png", Texture.class);
+        assets.load("personagem/personagem_idle_sw.png", Texture.class);
+        assets.load("personagem/personagem_run_se.png", Texture.class);
+        assets.load("personagem/personagem_run_sw.png", Texture.class);
+    }
+
+    @Override
+    public void render() {
+        super.render();
+    }
+
+    @Override
+    public void dispose() {
+        batch.dispose();
+        font.dispose();
+        assets.dispose();
+    }
+}
