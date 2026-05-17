@@ -18,7 +18,11 @@ public class Player {
 
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
+
+    // Controle de Ataque
     public boolean estaAtacando = false;
+    private boolean danoAplicado = false;
+
     public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
@@ -42,7 +46,7 @@ public class Player {
     Animation<TextureRegion> runAnimationSW;
 
     public ObjetoRenderizavel renderObj;
-    private PlayerController controller; // Dependência Injetada
+    private final PlayerController controller;
 
     public Player(Vector2 posicaoInicial, AssetManager assets, PlayerController controller) {
         this.posicaoMundo = posicaoInicial;
@@ -83,7 +87,8 @@ public class Player {
         return anim;
     }
 
-    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, float limiteX, float limiteY) {
+    // Método atualizado para receber as coordenadas de tela desprojetadas do mouse
+    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (cooldownDashTimer < tempoRecargaDash) {
             cooldownDashTimer += delta;
         }
@@ -99,7 +104,6 @@ public class Player {
         }
 
         float velocidadeAtual = velocidadeBase;
-
         if (estaDandoDash) {
             dashTimer += delta;
             velocidadeAtual = 25f;
@@ -107,12 +111,12 @@ public class Player {
             if (dashTimer >= duracaoDash) estaDandoDash = false;
         } else {
             if (controller.shiftPressed) velocidadeAtual = 10f;
-            else if (controller.ctrlPressed) velocidadeAtual = 5f;
+            else if (controller.ctrlPressed) velocidadeAtual = 2.5f;
         }
 
         float moveSpeed = velocidadeAtual * delta;
 
-        verificarAtaque();
+        verificarAtaque(mouseMundoX, mouseMundoY);
         aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa);
         restringirAosLimitesDoMapa(limiteX, limiteY);
 
@@ -139,37 +143,94 @@ public class Player {
         if (!inputDirecao.isZero()) {
             direcaoDash.set(inputDirecao).nor();
         } else {
-            if (direcaoAtual.equals("N")) direcaoDash.set(1, 1);
-            else if (direcaoAtual.equals("S")) direcaoDash.set(-1, -1);
-            else if (direcaoAtual.equals("E")) direcaoDash.set(1, -1);
-            else if (direcaoAtual.equals("W")) direcaoDash.set(-1, 1);
-            else if (direcaoAtual.equals("NE")) direcaoDash.set(1, 0);
-            else if (direcaoAtual.equals("NW")) direcaoDash.set(0, 1);
-            else if (direcaoAtual.equals("SE")) direcaoDash.set(0, -1);
-            else if (direcaoAtual.equals("SW")) direcaoDash.set(-1, 0);
+            switch (direcaoAtual) {
+                case "N":
+                    direcaoDash.set(1, 1);
+                    break;
+                case "S":
+                    direcaoDash.set(-1, -1);
+                    break;
+                case "E":
+                    direcaoDash.set(1, -1);
+                    break;
+                case "W":
+                    direcaoDash.set(-1, 1);
+                    break;
+                case "NE":
+                    direcaoDash.set(1, 0);
+                    break;
+                case "NW":
+                    direcaoDash.set(0, 1);
+                    break;
+                case "SE":
+                    direcaoDash.set(0, -1);
+                    break;
+                case "SW":
+                    direcaoDash.set(-1, 0);
+                    break;
+            }
             direcaoDash.nor();
         }
     }
 
-    private void verificarAtaque() {
+    // Lógica interna reformulada com snapping trigonométrico mapeado para o mouse
+    private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
         if (controller.consumeAttack() && attackTimer >= tempoRecargaAtaque) {
             estaAtacando = true;
             attackTimer = 0f;
+            danoAplicado = false;
 
-            float attackCenterX = posicaoMundo.x;
-            float attackCenterY = posicaoMundo.y;
-            float alcance = 1f;
+            // 1. Transformação Isométrica Inversa: converte pixels da tela do mundo para o espaço cartesiano
+            float tileW = 32f;
+            float tileH = 16f;
+            float a = mouseMundoX / (tileW / 2f);
+            float b = mouseMundoY / (tileH / 2f);
+            float mouseCartesianX = (a + b) / 2f;
+            float mouseCartesianY = (b - a) / 2f;
 
-            switch (direcaoAtual) {
-                case "N": attackCenterX += alcance; attackCenterY += alcance; break;
-                case "S": attackCenterX -= alcance; attackCenterY -= alcance; break;
-                case "E": attackCenterX += alcance; attackCenterY -= alcance; break;
-                case "W": attackCenterX -= alcance; attackCenterY += alcance; break;
-                case "NE": attackCenterX += alcance + 0.5f; attackCenterY -= alcance - 1f; break;
-                case "NW": attackCenterX -= alcance - 1f; attackCenterY += alcance + 0.5f; break;
-                case "SE": attackCenterX -= alcance - 1f; attackCenterY -= alcance + 0.5f; break;
-                case "SW": attackCenterX -= alcance + 0.5f; attackCenterY -= alcance - 1f; break;
+            // 2. Calcula o vetor de direção cartesiano do jogador até o clique
+            float deltaX = mouseCartesianX - posicaoMundo.x;
+            float deltaY = mouseCartesianY - posicaoMundo.y;
+
+            // 3. Obtém o ângulo polar absoluto em graus (0° a 360°)
+            float angle = MathUtils.atan2(deltaY, deltaX) * MathUtils.radiansToDegrees;
+            if (angle < 0) angle += 360f;
+
+            // 4. Snapping perfeito: divide a circunferência em 8 fatias de 45° rotacionadas em 22.5°
+            int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
+            switch (index) {
+                case 0: direcaoAtual = "NE"; break;
+                case 1: direcaoAtual = "N";  break;
+                case 2: direcaoAtual = "NW"; break;
+                case 3: direcaoAtual = "W";  break;
+                case 4: direcaoAtual = "SW"; break;
+                case 5: direcaoAtual = "S";  break;
+                case 6: direcaoAtual = "SE"; break;
+                case 7: direcaoAtual = "E";  break;
             }
+
+            // Define o posicionamento da hitbox com base na nova direção determinada
+            Vector2 vetorMira = new Vector2(deltaX, deltaY);
+            if (!vetorMira.isZero()) {
+                vetorMira.nor();
+            } else {
+                vetorMira.set(1, 0); // Fallback caso clique exatamente dentro do player
+            }
+
+            float alcance = 1.5f;
+            float attackCenterX = posicaoMundo.x + (vetorMira.x * alcance);
+            float attackCenterY = posicaoMundo.y + (vetorMira.y * alcance);
+
+            // switch (direcaoAtual) {
+            //     case "N": attackCenterX += alcance; attackCenterY += alcance; break;
+            //     case "S": attackCenterX -= alcance; attackCenterY -= alcance; break;
+            //     case "E": attackCenterX += alcance; attackCenterY -= alcance; break;
+            //     case "W": attackCenterX -= alcance; attackCenterY += alcance; break;
+            //     case "NE": attackCenterX += alcance + 0.5f; attackCenterY -= alcance - 1f; break;
+            //      case "NW": attackCenterX -= alcance - 1f; attackCenterY += alcance + 0.5f; break;
+            //     case "SE": attackCenterX -= alcance - 1f; attackCenterY -= alcance + 0.5f; break;
+            //     case "SW": attackCenterX -= alcance + 0.5f; attackCenterY -= alcance - 1f; break;
+            // }
             hitboxAtaque.set(attackCenterX, attackCenterY, 1.5f, 1.5f);
         }
     }
@@ -207,12 +268,13 @@ public class Player {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
-        if (estaAtacando) {
+        if (estaAtacando && !danoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
                     morcego.tomarDano();
                 }
             }
+            danoAplicado = true;
         }
     }
 

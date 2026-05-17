@@ -14,6 +14,10 @@ public class Morcego implements Poolable {
     public float timerMorto = 0f;
     public final float tempo_respawn = 3.0f;
 
+    // Status simples
+    public int vida = 3;
+    public final int vida_maxima = 3;
+
     public Vector2 posicaoMundo;
     public Rectangle hitboxColisao;
     public float velocidade = 3.5f;
@@ -21,7 +25,7 @@ public class Morcego implements Poolable {
     private Animation<TextureRegion> animacaoIdle;
     float localStateTime;
     final int quantidade_frames = 4;
-    final float elevacao_visual = 24f;
+    public final float elevacao_visual = 24f;
 
     public ObjetoRenderizavel renderObj;
 
@@ -31,12 +35,13 @@ public class Morcego implements Poolable {
         this.renderObj = new ObjetoRenderizavel();
     }
 
-    // Inicialização chamada pelo Pool ou ao criar
     public void init(Vector2 posicaoInicial, Texture texturaPronta) {
         this.posicaoMundo.set(posicaoInicial);
         this.localStateTime = 0f;
         this.isAtivo = true;
         this.timerMorto = 0f;
+        this.vida = 3; // Reseta a vida
+
         atualizarHitboxLogica();
 
         if (animacaoIdle == null) {
@@ -110,8 +115,11 @@ public class Morcego implements Poolable {
     }
 
     public void tomarDano() {
-        isAtivo = false;
-        timerMorto = 0f;
+        vida--;
+        if (vida <= 0) {
+            isAtivo = false;
+            timerMorto = 0f;
+        }
     }
 
     private void respawn(float limiteX, float limiteY) {
@@ -119,6 +127,8 @@ public class Morcego implements Poolable {
         float py = MathUtils.random(-limiteX + 2f, -2f);
         posicaoMundo.set(px, py);
         atualizarHitboxLogica();
+
+        vida = 3;
         isAtivo = true;
     }
 
@@ -139,5 +149,6 @@ public class Morcego implements Poolable {
     public void reset() {
         isAtivo = false;
         renderObj.textura = null;
+        vida = 3;
     }
 }

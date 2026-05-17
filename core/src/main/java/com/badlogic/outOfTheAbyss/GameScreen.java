@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -25,18 +26,15 @@ public class GameScreen implements Screen {
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
 
-    // Câmera e Viewport do Mundo Isométrico
     OrthographicCamera camera;
     Viewport viewport;
     final float viewport_width = 640f;
     final float viewport_height = 360f;
 
-    // Câmera e Viewport Fixos para a Interface (UI) e Debug
     OrthographicCamera uiCamera;
     Viewport uiViewport;
     BitmapFont font;
 
-    // Estados controladores de Debug
     private boolean mostrarDebugInfo = false;
     private boolean mostrarHitboxes = false;
 
@@ -71,17 +69,21 @@ public class GameScreen implements Screen {
     Array<Pedra> pedrasDoMapa = new Array<>();
     int quantidade_pedras = 50;
 
+    // Vetor temporário alocado no escopo da classe para evitar geração de lixo na memória (GC)
+    private final Vector3 auxMousePos = new Vector3();
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
         this.font = game.font;
 
-        // Setup do Mundo
+        this.font.getData().setScale(1f);
+        this.font.setUseIntegerPositions(true);
+
         camera = new OrthographicCamera();
         viewport = new FitViewport(viewport_width, viewport_height, camera);
         shapeRenderer = new ShapeRenderer();
 
-        // Setup Exclusivo da UI (Interface Fixo) - CORRIGIDO
         uiCamera = new OrthographicCamera();
         uiViewport = new FitViewport(viewport_width, viewport_height, uiCamera);
 
@@ -111,8 +113,6 @@ public class GameScreen implements Screen {
 
     @Override
     public void show() {
-        // Melhores práticas do libGDX: Adicionamos o InputProcessor
-        // no show() para garantir que a tela foque ao ser carregada.
         Gdx.input.setInputProcessor(playerController);
     }
 
@@ -130,22 +130,24 @@ public class GameScreen implements Screen {
             return false;
         }
 
-        // LÓGICA DE ALTERNÂNCIA DE ECRÃ COMPLETO (F11)
         if (playerController.consumeFullscreenToggle()) {
             if (Gdx.graphics.isFullscreen()) {
-                // Se estiver em Tela Cheia, reverte para o modo Janela
-                Gdx.graphics.setWindowedMode(640, 360);
+                Gdx.graphics.setWindowedMode(1280, 720);
             } else {
-                // Caso contrário, ativa a Tela Cheia baseando-se no monitor atual
                 Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
             }
         }
 
-        // Toggles das interfaces de debug
         if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
         if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
 
-        player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY);
+        // Captura a posição crua do mouse em pixels da janela de exibição
+        auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
+        // Multiplica os vetores pela inversa da matriz de visualização da câmera
+        camera.unproject(auxMousePos);
+
+        // Injeta as coordenadas transformadas da tela tridimensional para o update do player
+        player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
         return true;
     }
 
@@ -191,7 +193,6 @@ public class GameScreen implements Screen {
         Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // 1. RENDERIZAÇÃO DO MUNDO
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
@@ -236,7 +237,6 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
-        // 2. RENDERIZAÇÃO DAS HITBOXES
         if (mostrarHitboxes) {
             shapeRenderer.setProjectionMatrix(camera.combined);
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -261,9 +261,29 @@ public class GameScreen implements Screen {
                 desenharRetanguloIsometrico(player.hitboxAtaque, shapeRenderer);
             }
             shapeRenderer.end();
+
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            for (Morcego morcego : morcegos) {
+                if (morcego.isAtivo) {
+                    float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
+                    float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
+
+                    float larguraBarra = 20f;
+                    float alturaBarra = 3f;
+                    float barraX = mScreenX - (larguraBarra / 2f);
+                    float barraY = mScreenY + morcego.elevacao_visual + 20f;
+
+                    shapeRenderer.setColor(Color.RED);
+                    shapeRenderer.rect(barraX, barraY, larguraBarra, alturaBarra);
+
+                    shapeRenderer.setColor(Color.GREEN);
+                    float proporcaoVida = (float) morcego.vida / morcego.vida_maxima;
+                    shapeRenderer.rect(barraX, barraY, larguraBarra * proporcaoVida, alturaBarra);
+                }
+            }
+            shapeRenderer.end();
         }
 
-        // 3. RENDERIZAÇÃO DO OVERLAY DE DEBUG (F3)
         if (mostrarDebugInfo) {
             uiViewport.apply();
             batch.setProjectionMatrix(uiCamera.combined);
@@ -279,7 +299,6 @@ public class GameScreen implements Screen {
             );
 
             font.setColor(Color.GREEN);
-            // Desenha a partir do topo para não ficar cortado se a janela mudar
             font.draw(batch, textoOverlay, 15, viewport_height - 15);
             batch.end();
         }
@@ -305,7 +324,7 @@ public class GameScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, false);
-        uiViewport.update(width, height, true); // Agora uiViewport existe e foi corretamente instanciado!
+        uiViewport.update(width, height, true);
     }
 
     @Override public void hide() {}
