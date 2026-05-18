@@ -17,6 +17,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.Comparator;
 
@@ -30,8 +31,10 @@ public class GameScreen implements Screen {
     // Viewport do Mundo (move-se junto ao Player)
     OrthographicCamera camera;
     Viewport viewport;
-    final float viewport_width = 640f;
-    final float viewport_height = 360f;
+    //final float viewport_width = 320f;
+    //final float viewport_height = 180f;
+    final float viewport_width = 640;
+    final float viewport_height = 360;
 
     // Viewport Fixo (estático, usado para exibir HUD e textos)
     OrthographicCamera uiCamera;
@@ -76,7 +79,7 @@ public class GameScreen implements Screen {
     };
     Array<Morcego> morcegos = new Array<>();
     Array<Pedra> pedrasDoMapa = new Array<>();
-    int quantidade_pedras = 50;
+    int quantidade_pedras = 0;
 
     // Vetor mutável reutilizado no loop principal (zero emissão de lixo)
     private final Vector3 auxMousePos = new Vector3();
@@ -94,7 +97,7 @@ public class GameScreen implements Screen {
         shapeRenderer = new ShapeRenderer();
 
         uiCamera = new OrthographicCamera();
-        uiViewport = new FitViewport(viewport_width, viewport_height, uiCamera);
+        uiViewport = new ScreenViewport(uiCamera);
 
         mapaTexture = game.assets.get("mapa/mapa_simples.png", Texture.class);
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
