@@ -397,12 +397,4 @@ public class GameScreen implements Screen {
     public void dispose() {
         shapeRenderer.dispose();
     }
-
-    public float getTimerRespawnMorcego() {
-        return timerRespawnMorcego;
-    }
-
-    public void setTimerRespawnMorcego(float timerRespawnMorcego) {
-        this.timerRespawnMorcego = timerRespawnMorcego;
-    }
 }
