@@ -29,11 +29,12 @@ public class MenuInicial implements Screen {
         this.game = game;
         stage = new Stage(new FitViewport(640, 360));
 
-        // Busca direto da memória cacheada pelo AssetManager!
+        // Obtém referências das texturas já decodificadas da RAM
         backgroundTexture = game.assets.get("background/tela-menu.png", Texture.class);
         playButtonTexture = game.assets.get("botao/botao_jogar.png", Texture.class);
         exitButtonTexture = game.assets.get("botao/botao_sair.png", Texture.class);
 
+        // Estilização e instanciação do botão de Jogar
         ImageButton.ImageButtonStyle playStyle = new ImageButton.ImageButtonStyle();
         playStyle.imageUp = new TextureRegionDrawable(new TextureRegion(playButtonTexture));
         ImageButton playButton = new ImageButton(playStyle);
@@ -44,6 +45,7 @@ public class MenuInicial implements Screen {
                 game.setScreen(new GameScreen(game));
                 dispose();
             }
+            // Ações interpoladas (Actions) acionadas ao entrar/sair do Hover do mouse
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
                 super.enter(event, x, y, pointer, fromActor);
@@ -62,6 +64,7 @@ public class MenuInicial implements Screen {
             }
         });
 
+        // Estilização e instanciação do botão de Sair
         ImageButton.ImageButtonStyle exitStyle = new ImageButton.ImageButtonStyle();
         exitStyle.imageUp = new TextureRegionDrawable(new TextureRegion(exitButtonTexture));
         ImageButton exitButton = new ImageButton(exitStyle);
@@ -71,6 +74,7 @@ public class MenuInicial implements Screen {
             public void clicked(InputEvent event, float x, float y) {
                 Gdx.app.exit();
             }
+            // Ações interpoladas (Actions) acionadas ao entrar/sair do Hover do mouse
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
                 super.enter(event, x, y, pointer, fromActor);
@@ -89,6 +93,7 @@ public class MenuInicial implements Screen {
             }
         });
 
+        // Posicionamento elástico em Tabela (similar ao uso de Grid/Flex na Web)
         Table table = new Table();
         table.setFillParent(true);
         table.left().padLeft(16);
@@ -96,6 +101,7 @@ public class MenuInicial implements Screen {
         table.add(exitButton);
         stage.addActor(table);
 
+        // Listener Global de Tela (captura atalhos que não estão sobre Atores)
         stage.addListener(new InputListener() {
             @Override
             public boolean keyDown(InputEvent event, int keycode) {
@@ -114,6 +120,7 @@ public class MenuInicial implements Screen {
 
     @Override
     public void show() {
+        // Entrega o processamento de cliques ao Stage
         Gdx.input.setInputProcessor(stage);
     }
 

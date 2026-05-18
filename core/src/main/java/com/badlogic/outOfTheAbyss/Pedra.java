@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
+// Entidade Estática do mundo isométrico baseada em grade (grid-aligned obstacles).
 public class Pedra {
     public Vector2 posicaoMundo;
     public Rectangle hitboxColisao;

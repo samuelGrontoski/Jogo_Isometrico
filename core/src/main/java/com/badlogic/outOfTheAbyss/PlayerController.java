@@ -3,6 +3,8 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 
+// Padrão Event-Driven. Lê os callbacks do mouse/teclado de forma isolada,
+// mitigando bugs da técnica de "polling" via loop update.
 public class PlayerController extends InputAdapter {
     public boolean up, down, left, right;
     public boolean shiftPressed;
@@ -14,7 +16,7 @@ public class PlayerController extends InputAdapter {
     private boolean attackTriggered;
     private boolean fullscreenTriggered;
 
-    // Estados de Depuração (Estilo Minecraft F3)
+    // Estados Isolados e Combos (ex: Segurar F3 e pressionar B)
     private boolean f3Held = false;
     private boolean f3ActionUsed = false;
     private boolean debugInfoToggle = false;
@@ -36,13 +38,13 @@ public class PlayerController extends InputAdapter {
             // Lógica de atalhos de depuração
             case Input.Keys.F3:
                 f3Held = true;
-                f3ActionUsed = false; // Começamos assumindo que é apenas o F3
+                f3ActionUsed = false;
                 break;
 
             case Input.Keys.B:
                 if (f3Held) {
-                    hitboxesToggle = true; // Dispara a troca das hitboxes
-                    f3ActionUsed = true;   // Marca que o F3 foi usado para um combo
+                    hitboxesToggle = true;
+                    f3ActionUsed = true; // Impede que soltar a tecla dispare a interface normal do F3
                 }
                 break;
         }
@@ -79,12 +81,7 @@ public class PlayerController extends InputAdapter {
         return false;
     }
 
-    @Override
-    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-        return false;
-    }
-
-    // --- Métodos de Consumo de Trigger ---
+    // --- CONSUMO DE GATILHOS (Devem ser lidos pelas lógicas via query) ---
     public boolean consumeDash() {
         if (dashTriggered) {
             dashTriggered = false;

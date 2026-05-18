@@ -9,12 +9,12 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool.Poolable;
 
+// Inteligência Artificial Boid com implemento Poolable para reutilização em massa.
 public class Morcego implements Poolable {
     public boolean isAtivo = true;
     public float timerMorto = 0f;
     public final float tempo_respawn = 3.0f;
 
-    // Status simples
     public int vida = 3;
     public final int vida_maxima = 3;
 
@@ -35,6 +35,7 @@ public class Morcego implements Poolable {
         this.renderObj = new ObjetoRenderizavel();
     }
 
+    // Pseudo-construtor: Injetado via `Pool.obtain()` para limpar estado de memórias recicladas
     public void init(Vector2 posicaoInicial, Texture texturaPronta) {
         this.posicaoMundo.set(posicaoInicial);
         this.localStateTime = 0f;
@@ -73,14 +74,17 @@ public class Morcego implements Poolable {
         localStateTime += delta;
         renderObj.textura = animacaoIdle.getKeyFrame(localStateTime, true);
 
+        // Algoritmo de IA Baseado em Forças
         Vector2 direcaoAoPlayer = new Vector2(posicaoPlayer.x - posicaoMundo.x, posicaoPlayer.y - posicaoMundo.y);
         float distanciaPlayer = direcaoAoPlayer.len();
         Vector2 forcaTotal = new Vector2();
 
+        // Atração (Perseguição)
         if (distanciaPlayer > 0.8f) {
             forcaTotal.add(direcaoAoPlayer.nor());
         }
 
+        // Força de Separação (Mitiga colisão em rede de múltiplos atores simultâneos)
         Vector2 separacao = new Vector2();
         int vizinhosMuitoPerto = 0;
         float raio_de_separacao = 1.2f;

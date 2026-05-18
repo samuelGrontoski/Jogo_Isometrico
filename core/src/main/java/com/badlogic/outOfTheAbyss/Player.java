@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 
+// Entidade controlada pelo usuário. Centraliza Movimento, Física de Colisão, Status e Ações.
 public class Player {
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
@@ -21,12 +22,13 @@ public class Player {
 
     // Controle de Ataque
     public boolean estaAtacando = false;
-    private boolean danoAplicado = false;
+    private boolean danoAplicado = false; // Garante hit instantâneo em vez de checagem per-frame
 
     public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
 
+    // Controle de Dash
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
     public final float duracaoDash = 0.15f;
@@ -87,14 +89,13 @@ public class Player {
         return anim;
     }
 
-    // Método atualizado para receber as coordenadas de tela desprojetadas do mouse
     public void updateInput(float delta, Array<Pedra> pedrasDoMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (cooldownDashTimer < tempoRecargaDash) {
             cooldownDashTimer += delta;
         }
-
         inputDirecao.set(0, 0);
 
+        // Movement Lock enquanto ataca
         if (!estaAtacando && !estaDandoDash) {
             lerInputsController();
         }
@@ -173,14 +174,13 @@ public class Player {
         }
     }
 
-    // Lógica interna reformulada com snapping trigonométrico mapeado para o mouse
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
         if (controller.consumeAttack() && attackTimer >= tempoRecargaAtaque) {
             estaAtacando = true;
             attackTimer = 0f;
             danoAplicado = false;
 
-            // 1. Transformação Isométrica Inversa: converte pixels da tela do mundo para o espaço cartesiano
+            // Transf. Iso-Inversa: Tela -> Espaço Cartesiano do Tabuleiro
             float tileW = 32f;
             float tileH = 16f;
             float a = mouseMundoX / (tileW / 2f);
@@ -188,15 +188,13 @@ public class Player {
             float mouseCartesianX = (a + b) / 2f;
             float mouseCartesianY = (b - a) / 2f;
 
-            // 2. Calcula o vetor de direção cartesiano do jogador até o clique
             float deltaX = mouseCartesianX - posicaoMundo.x;
             float deltaY = mouseCartesianY - posicaoMundo.y;
 
-            // 3. Obtém o ângulo polar absoluto em graus (0° a 360°)
+            // Snapping Visual: Força a pose nos 8 eixos de 45°
             float angle = MathUtils.atan2(deltaY, deltaX) * MathUtils.radiansToDegrees;
             if (angle < 0) angle += 360f;
 
-            // 4. Snapping perfeito: divide a circunferência em 8 fatias de 45° rotacionadas em 22.5°
             int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
             switch (index) {
                 case 0: direcaoAtual = "NE"; break;
@@ -209,28 +207,18 @@ public class Player {
                 case 7: direcaoAtual = "E";  break;
             }
 
-            // Define o posicionamento da hitbox com base na nova direção determinada
+            // Normalização de Lógica: Hitbox não trava; segue o cursor precisamente (360 graus)
             Vector2 vetorMira = new Vector2(deltaX, deltaY);
             if (!vetorMira.isZero()) {
                 vetorMira.nor();
             } else {
-                vetorMira.set(1, 0); // Fallback caso clique exatamente dentro do player
+                vetorMira.set(1, 0);
             }
 
             float alcance = 1.5f;
             float attackCenterX = posicaoMundo.x + (vetorMira.x * alcance);
             float attackCenterY = posicaoMundo.y + (vetorMira.y * alcance);
 
-            // switch (direcaoAtual) {
-            //     case "N": attackCenterX += alcance; attackCenterY += alcance; break;
-            //     case "S": attackCenterX -= alcance; attackCenterY -= alcance; break;
-            //     case "E": attackCenterX += alcance; attackCenterY -= alcance; break;
-            //     case "W": attackCenterX -= alcance; attackCenterY += alcance; break;
-            //     case "NE": attackCenterX += alcance + 0.5f; attackCenterY -= alcance - 1f; break;
-            //      case "NW": attackCenterX -= alcance - 1f; attackCenterY += alcance + 0.5f; break;
-            //     case "SE": attackCenterX -= alcance - 1f; attackCenterY -= alcance + 0.5f; break;
-            //     case "SW": attackCenterX -= alcance + 0.5f; attackCenterY -= alcance - 1f; break;
-            // }
             hitboxAtaque.set(attackCenterX, attackCenterY, 1.5f, 1.5f);
         }
     }
@@ -268,6 +256,7 @@ public class Player {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
+        // Desacoplado: Checa colisões apenas 1 vez, mesmo a animação durando 0.2s
         if (estaAtacando && !danoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {

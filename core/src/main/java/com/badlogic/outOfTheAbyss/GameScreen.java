@@ -20,17 +20,20 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.Comparator;
 
+// Loop principal de Gameplay. Arquitetado como Model-View para controle isométrico.
 public class GameScreen implements Screen {
 
     final JogoIsometrico game;
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
 
+    // Viewport do Mundo (move-se junto ao Player)
     OrthographicCamera camera;
     Viewport viewport;
     final float viewport_width = 640f;
     final float viewport_height = 360f;
 
+    // Viewport Fixo (estático, usado para exibir HUD e textos)
     OrthographicCamera uiCamera;
     Viewport uiViewport;
     BitmapFont font;
@@ -38,6 +41,7 @@ public class GameScreen implements Screen {
     private boolean mostrarDebugInfo = false;
     private boolean mostrarHitboxes = false;
 
+    // Algoritmo do Pintor (Z-Sorting): Entidades são alocadas aqui antes de desenhar
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
     Texture mapaTexture;
@@ -53,9 +57,12 @@ public class GameScreen implements Screen {
     Player player;
     PlayerController playerController;
 
+    // Memory Pools: Evita o instanciamento contínuo com "new" prevenindo a ação pesada do Garbage Collector
     private final Pool<SombraDash> sombraPool = new Pool<SombraDash>() {
         @Override
-        protected SombraDash newObject() { return new SombraDash(); }
+        protected SombraDash newObject() {
+            return new SombraDash();
+        }
     };
     Array<SombraDash> sombrasAtivas = new Array<>();
     float tempoCriarProximaSombra = 0f;
@@ -63,13 +70,15 @@ public class GameScreen implements Screen {
 
     private final Pool<Morcego> morcegoPool = new Pool<Morcego>() {
         @Override
-        protected Morcego newObject() { return new Morcego(); }
+        protected Morcego newObject() {
+            return new Morcego();
+        }
     };
     Array<Morcego> morcegos = new Array<>();
     Array<Pedra> pedrasDoMapa = new Array<>();
     int quantidade_pedras = 50;
 
-    // Vetor temporário alocado no escopo da classe para evitar geração de lixo na memória (GC)
+    // Vetor mutável reutilizado no loop principal (zero emissão de lixo)
     private final Vector3 auxMousePos = new Vector3();
 
     public GameScreen(final JogoIsometrico game) {
@@ -90,6 +99,7 @@ public class GameScreen implements Screen {
         mapaTexture = game.assets.get("mapa/mapa_simples.png", Texture.class);
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
 
+        // População aleatória do ambiente
         TextureRegion pedraRegion = new TextureRegion(game.assets.get("mapa/objetos/pedras/pedra_01.png", Texture.class));
         for (int i = 0; i < quantidade_pedras; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
@@ -105,7 +115,7 @@ public class GameScreen implements Screen {
         for (int i = 0; i < 10; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
             float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-            Morcego m = morcegoPool.obtain();
+            Morcego m = morcegoPool.obtain(); // Recupera/Cria instâncias pelo Pool
             m.init(new Vector2(px, py), textureMorcegoFly);
             morcegos.add(m);
         }
@@ -118,7 +128,10 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        if (!input(delta)) return;
+        // Se a tela for trocada, aborta o frame preventivamente
+        if (!input(delta)) {
+            return;
+        }
         logic(delta);
         draw(delta);
     }
@@ -130,6 +143,7 @@ public class GameScreen implements Screen {
             return false;
         }
 
+        // Toggles baseados no consumo do trigger dinâmico
         if (playerController.consumeFullscreenToggle()) {
             if (Gdx.graphics.isFullscreen()) {
                 Gdx.graphics.setWindowedMode(1280, 720);
@@ -141,12 +155,10 @@ public class GameScreen implements Screen {
         if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
         if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
 
-        // Captura a posição crua do mouse em pixels da janela de exibição
+        // Desprojeção Geométrica (Transforma Pixels do Mouse na Tela em Pixels Cartesianos da Câmera Ativa)
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
-        // Multiplica os vetores pela inversa da matriz de visualização da câmera
         camera.unproject(auxMousePos);
 
-        // Injeta as coordenadas transformadas da tela tridimensional para o update do player
         player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
         return true;
     }
@@ -154,6 +166,7 @@ public class GameScreen implements Screen {
     private void logic(float delta) {
         player.atualizarLogicaAtaque(delta, morcegos);
 
+        // Conversão linear: Vetor Cartesiano (x, y) -> Ponto Isométrico na Tela
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
@@ -178,12 +191,13 @@ public class GameScreen implements Screen {
             sombra.tempoDeVida -= delta;
             if (sombra.tempoDeVida <= 0) {
                 sombrasAtivas.removeIndex(i);
-                sombraPool.free(sombra);
+                sombraPool.free(sombra); // Devolve ao Pool evitando que o lixo acione
             } else {
                 sombra.render.alpha = (sombra.tempoDeVida / sombra.tempo_max_vida) * 0.5f;
             }
         }
 
+        // Camera follow
         float offsetCameraY = viewport_height / 4f;
         camera.position.set(screenX, screenY + offsetCameraY, 0);
         camera.update();
@@ -196,8 +210,11 @@ public class GameScreen implements Screen {
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
+
+        // Camada Base
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
+        // Preparação do Array para o Z-Sorting
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
@@ -223,6 +240,7 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(sombra.render);
         }
 
+        // Z-Sorting: Ordenação decrescente baseada na coordenada Y de visualização
         listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
             @Override
             public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
@@ -239,6 +257,8 @@ public class GameScreen implements Screen {
 
         if (mostrarHitboxes) {
             shapeRenderer.setProjectionMatrix(camera.combined);
+
+            // Desenhando Hitboxes
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
             shapeRenderer.setColor(Color.YELLOW);
@@ -262,6 +282,7 @@ public class GameScreen implements Screen {
             }
             shapeRenderer.end();
 
+            // Desenhando formas sólidas (Barras de vida do inimigo)
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo) {
@@ -284,6 +305,7 @@ public class GameScreen implements Screen {
             shapeRenderer.end();
         }
 
+        // Camada de Projeção UI Fixa
         if (mostrarDebugInfo) {
             uiViewport.apply();
             batch.setProjectionMatrix(uiCamera.combined);
@@ -304,6 +326,7 @@ public class GameScreen implements Screen {
         }
     }
 
+    // Auxiliar: Projeta um retângulo AABB 2D plano em um losango angular simulando a isometria
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
         float x1 = rect.x, y1 = rect.y;
         float x2 = rect.x + rect.width, y2 = rect.y;

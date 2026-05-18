@@ -2,6 +2,8 @@ package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.utils.Pool.Poolable;
 
+// Efeito visual temporário (Ghost Trail) com controle de opacidade via Alpha,
+// altamente otimizado por POOLING.
 public class SombraDash implements Poolable {
     public ObjetoRenderizavel render;
     public float tempoDeVida;
