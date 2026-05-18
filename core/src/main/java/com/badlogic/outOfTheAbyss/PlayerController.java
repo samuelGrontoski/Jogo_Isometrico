@@ -1,11 +1,11 @@
 package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputProcessor;
 
 // Padrão Event-Driven. Lê os callbacks do mouse/teclado de forma isolada,
 // mitigando bugs da técnica de "polling" via loop update.
-public class PlayerController extends InputAdapter {
+public class PlayerController implements InputProcessor {
     public boolean up, down, left, right;
     public boolean shiftPressed;
     public boolean ctrlPressed;
@@ -119,6 +119,37 @@ public class PlayerController extends InputAdapter {
             hitboxesToggle = false;
             return true;
         }
+        return false;
+    }
+
+    @Override
+    public boolean keyTyped(char character) {
+        // Retorne false se o evento não foi consumido aqui
+        return false;
+    }
+
+    @Override
+    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        return false;
+    }
+
+    @Override
+    public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
+        return false;
+    }
+
+    @Override
+    public boolean touchDragged(int screenX, int screenY, int pointer) {
+        return false;
+    }
+
+    @Override
+    public boolean mouseMoved(int screenX, int screenY) {
+        return false;
+    }
+
+    @Override
+    public boolean scrolled(float amountX, float amountY) {
         return false;
     }
 }

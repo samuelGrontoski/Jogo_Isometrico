@@ -78,8 +78,13 @@ public class GameScreen implements Screen {
         }
     };
     Array<Morcego> morcegos = new Array<>();
+    // Spawner de Morcegos
+    private float timerRespawnMorcego = 0f;
+    private final int max_morcegos_no_mapa = 10;
+    private final Texture textureMorcegoFly;
+
     Array<Pedra> pedrasDoMapa = new Array<>();
-    int quantidade_pedras = 0;
+    int quantidade_pedras = 50;
 
     // Vetor mutável reutilizado no loop principal (zero emissão de lixo)
     private final Vector3 auxMousePos = new Vector3();
@@ -114,13 +119,11 @@ public class GameScreen implements Screen {
         Vector2 posicaoInicial = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
-        Texture textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
-        for (int i = 0; i < 10; i++) {
-            float px = MathUtils.random(2f, limiteMapaY - 2f);
-            float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-            Morcego m = morcegoPool.obtain(); // Recupera/Cria instâncias pelo Pool
-            m.init(new Vector2(px, py), textureMorcegoFly);
-            morcegos.add(m);
+        textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
+
+        // Spawn inicial (enche o mapa)
+        for (int i = 0; i < max_morcegos_no_mapa; i++) {
+            gerarMorcegoAleatorio();
         }
     }
 
@@ -173,6 +176,7 @@ public class GameScreen implements Screen {
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
+        // LÓGICA DAS SOMBRAS DO DASH (POOLING)
         if (player.estaDandoDash) {
             tempoCriarProximaSombra -= delta;
             if (tempoCriarProximaSombra <= 0) {
@@ -189,15 +193,41 @@ public class GameScreen implements Screen {
             }
         }
 
+        // Loop Reverso para remoção segura e Devolução à Pool
         for (int i = sombrasAtivas.size - 1; i >= 0; i--) {
             SombraDash sombra = sombrasAtivas.get(i);
             sombra.tempoDeVida -= delta;
             if (sombra.tempoDeVida <= 0) {
                 sombrasAtivas.removeIndex(i);
-                sombraPool.free(sombra); // Devolve ao Pool evitando que o lixo acione
+                sombraPool.free(sombra);
             } else {
                 sombra.render.alpha = (sombra.tempoDeVida / sombra.tempo_max_vida) * 0.5f;
             }
+        }
+
+        // LÓGICA E POOLING DOS MORCEGOS
+
+        // Sistema Gerenciador de Respawn do Mapa
+        if (morcegos.size < max_morcegos_no_mapa) {
+            timerRespawnMorcego += delta;
+            float tempo_respawn_morcego = 3.0f;
+            if (timerRespawnMorcego >= tempo_respawn_morcego) {
+                gerarMorcegoAleatorio();
+                timerRespawnMorcego -= tempo_respawn_morcego;
+            }
+        }
+
+        for (int i = morcegos.size - 1; i >= 0; i--) {
+            Morcego morcego = morcegos.get(i);
+
+            if (!morcego.isAtivo) {
+                morcegos.removeIndex(i);
+                morcegoPool.free(morcego);
+                continue;
+            }
+
+            // Atualiza apenas morcegos que estão vivos
+            morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
         }
 
         // Camera follow
@@ -213,8 +243,6 @@ public class GameScreen implements Screen {
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-
-        // Camada Base
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
         // Preparação do Array para o Z-Sorting
@@ -224,14 +252,11 @@ public class GameScreen implements Screen {
         listaDeDesenho.add(player.renderObj);
 
         for (Morcego morcego : morcegos) {
-            morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
-            if (morcego.isAtivo) {
-                float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
-                float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
-                morcego.prepararZSorting(mScreenX, mScreenY);
-                morcego.renderObj.alpha = 1f;
-                listaDeDesenho.add(morcego.renderObj);
-            }
+            float mScreenX = (morcego.posicaoMundo.x - morcego.posicaoMundo.y) * (tile_width / 2f);
+            float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
+            morcego.prepararZSorting(mScreenX, mScreenY);
+            morcego.renderObj.alpha = 1f;
+            listaDeDesenho.add(morcego.renderObj);
         }
 
         for (Pedra pedra : pedrasDoMapa) {
@@ -252,8 +277,10 @@ public class GameScreen implements Screen {
         });
 
         for (ObjetoRenderizavel obj : listaDeDesenho) {
-            batch.setColor(1f, 1f, 1f, obj.alpha);
-            batch.draw(obj.textura, obj.drawX, obj.drawY);
+            if (obj.textura != null) {
+                batch.setColor(1f, 1f, 1f, obj.alpha);
+                batch.draw(obj.textura, obj.drawX, obj.drawY);
+            }
         }
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
@@ -329,6 +356,15 @@ public class GameScreen implements Screen {
         }
     }
 
+    // Método Utilitário de Spawn (puxa da Pool)
+    private void gerarMorcegoAleatorio() {
+        float px = MathUtils.random(2f, limiteMapaY - 2f);
+        float py = MathUtils.random(-limiteMapaX + 2f, -2f);
+        Morcego m = morcegoPool.obtain();
+        m.init(new Vector2(px, py), textureMorcegoFly);
+        morcegos.add(m);
+    }
+
     // Auxiliar: Projeta um retângulo AABB 2D plano em um losango angular simulando a isometria
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
         float x1 = rect.x, y1 = rect.y;
@@ -360,5 +396,13 @@ public class GameScreen implements Screen {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
+    }
+
+    public float getTimerRespawnMorcego() {
+        return timerRespawnMorcego;
+    }
+
+    public void setTimerRespawnMorcego(float timerRespawnMorcego) {
+        this.timerRespawnMorcego = timerRespawnMorcego;
     }
 }

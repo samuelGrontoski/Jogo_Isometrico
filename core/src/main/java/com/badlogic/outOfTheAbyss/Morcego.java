@@ -12,9 +12,6 @@ import com.badlogic.gdx.utils.Pool.Poolable;
 // Inteligência Artificial Boid com implemento Poolable para reutilização em massa.
 public class Morcego implements Poolable {
     public boolean isAtivo = true;
-    public float timerMorto = 0f;
-    public final float tempo_respawn = 3.0f;
-
     public int vida = 3;
     public final int vida_maxima = 3;
 
@@ -40,8 +37,7 @@ public class Morcego implements Poolable {
         this.posicaoMundo.set(posicaoInicial);
         this.localStateTime = 0f;
         this.isAtivo = true;
-        this.timerMorto = 0f;
-        this.vida = 3; // Reseta a vida
+        this.vida = vida_maxima;
 
         atualizarHitboxLogica();
 
@@ -63,14 +59,6 @@ public class Morcego implements Poolable {
     }
 
     public void update(float delta, Vector2 posicaoPlayer, Array<Morcego> bando, float limiteX, float limiteY) {
-        if (!isAtivo) {
-            timerMorto += delta;
-            if (timerMorto >= tempo_respawn) {
-                respawn(limiteX, limiteY);
-            }
-            return;
-        }
-
         localStateTime += delta;
         renderObj.textura = animacaoIdle.getKeyFrame(localStateTime, true);
 
@@ -122,18 +110,7 @@ public class Morcego implements Poolable {
         vida--;
         if (vida <= 0) {
             isAtivo = false;
-            timerMorto = 0f;
         }
-    }
-
-    private void respawn(float limiteX, float limiteY) {
-        float px = MathUtils.random(2f, limiteY - 2f);
-        float py = MathUtils.random(-limiteX + 2f, -2f);
-        posicaoMundo.set(px, py);
-        atualizarHitboxLogica();
-
-        vida = 3;
-        isAtivo = true;
     }
 
     private void atualizarHitboxLogica() {
@@ -153,6 +130,6 @@ public class Morcego implements Poolable {
     public void reset() {
         isAtivo = false;
         renderObj.textura = null;
-        vida = 3;
+        vida = vida_maxima;
     }
 }
