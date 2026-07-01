@@ -219,7 +219,7 @@ public class Player {
             float attackCenterX = posicaoMundo.x + (vetorMira.x * alcance);
             float attackCenterY = posicaoMundo.y + (vetorMira.y * alcance);
 
-            hitboxAtaque.set(attackCenterX, attackCenterY, 1.5f, 1.5f);
+            hitboxAtaque.set(attackCenterX, attackCenterY, 2f, 2f);
         }
     }
 

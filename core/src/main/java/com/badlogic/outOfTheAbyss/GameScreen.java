@@ -5,10 +5,12 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -21,22 +23,17 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.Comparator;
 
-// Loop principal de Gameplay. Arquitetado como Model-View para controle isométrico.
 public class GameScreen implements Screen {
 
     final JogoIsometrico game;
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
 
-    // Viewport do Mundo (move-se junto ao Player)
     OrthographicCamera camera;
     Viewport viewport;
-    //final float viewport_width = 320f;
-    //final float viewport_height = 180f;
     final float viewport_width = 640;
     final float viewport_height = 360;
 
-    // Viewport Fixo (estático, usado para exibir HUD e textos)
     OrthographicCamera uiCamera;
     Viewport uiViewport;
     BitmapFont font;
@@ -44,7 +41,6 @@ public class GameScreen implements Screen {
     private boolean mostrarDebugInfo = false;
     private boolean mostrarHitboxes = false;
 
-    // Algoritmo do Pintor (Z-Sorting): Entidades são alocadas aqui antes de desenhar
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
     Texture mapaTexture;
@@ -60,12 +56,14 @@ public class GameScreen implements Screen {
     Player player;
     PlayerController playerController;
 
-    // Memory Pools: Evita o instanciamento contínuo com "new" prevenindo a ação pesada do Garbage Collector
+    // SISTEMA DE LUZ E NÉVOA (FOG OF WAR)
+    FrameBuffer lightBuffer;
+    TextureRegion lightBufferRegion;
+    Texture lightBrush;
+
     private final Pool<SombraDash> sombraPool = new Pool<SombraDash>() {
         @Override
-        protected SombraDash newObject() {
-            return new SombraDash();
-        }
+        protected SombraDash newObject() { return new SombraDash(); }
     };
     Array<SombraDash> sombrasAtivas = new Array<>();
     float tempoCriarProximaSombra = 0f;
@@ -73,12 +71,9 @@ public class GameScreen implements Screen {
 
     private final Pool<Morcego> morcegoPool = new Pool<Morcego>() {
         @Override
-        protected Morcego newObject() {
-            return new Morcego();
-        }
+        protected Morcego newObject() { return new Morcego(); }
     };
     Array<Morcego> morcegos = new Array<>();
-    // Spawner de Morcegos
     private float timerRespawnMorcego = 0f;
     private final int max_morcegos_no_mapa = 10;
     private final Texture textureMorcegoFly;
@@ -86,7 +81,6 @@ public class GameScreen implements Screen {
     Array<Pedra> pedrasDoMapa = new Array<>();
     int quantidade_pedras = 50;
 
-    // Vetor mutável reutilizado no loop principal (zero emissão de lixo)
     private final Vector3 auxMousePos = new Vector3();
 
     public GameScreen(final JogoIsometrico game) {
@@ -107,7 +101,15 @@ public class GameScreen implements Screen {
         mapaTexture = game.assets.get("mapa/mapa_simples.png", Texture.class);
         mapaOffsetY = -limiteMapaX * (tile_height / 2f);
 
-        // População aleatória do ambiente
+        // INICIALIZAÇÃO DA LUZ
+        // 1. Cria o FrameBuffer com a exata resolução do nosso Viewport Virtual
+        lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
+        lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
+        lightBufferRegion.flip(false, true); // O OpenGL renderiza FBOs de cabeça para baixo nativamente
+
+        // 2. Cria a textura do feixe de luz usando a RAM (Sem depender de arquivos PNG novos)
+        lightBrush = gerarTexturaLuz(256);
+
         TextureRegion pedraRegion = new TextureRegion(game.assets.get("mapa/objetos/pedras/pedra_01.png", Texture.class));
         for (int i = 0; i < quantidade_pedras; i++) {
             float px = MathUtils.random(2f, limiteMapaY - 2f);
@@ -120,11 +122,33 @@ public class GameScreen implements Screen {
         player = new Player(posicaoInicial, game.assets, playerController);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
-
-        // Spawn inicial (enche o mapa)
         for (int i = 0; i < max_morcegos_no_mapa; i++) {
             gerarMorcegoAleatorio();
         }
+    }
+
+    /**
+     * Gera uma textura procedural de luz suave (gradiente radial) na CPU e a envia para a GPU.
+     */
+    private Texture gerarTexturaLuz(int tamanho) {
+        Pixmap pixmap = new Pixmap(tamanho, tamanho, Pixmap.Format.RGBA8888);
+        float raio = tamanho / 2f;
+
+        for (int x = 0; x < tamanho; x++) {
+            for (int y = 0; y < tamanho; y++) {
+                float dist = Vector2.dst(x, y, raio, raio);
+                float alpha = 1f - (dist / raio);
+                if (alpha < 0f) alpha = 0f;
+
+                // Atenuação Quadrática (Deixa a borda da luz muito mais natural que uma linha reta)
+                alpha = alpha * alpha;
+                pixmap.setColor(1f, 1f, 1f, alpha);
+                pixmap.drawPixel(x, y);
+            }
+        }
+        Texture tex = new Texture(pixmap);
+        pixmap.dispose(); // Best Practice: Sempre descartar Pixmaps nativos da RAM após enviar pra VRAM
+        return tex;
     }
 
     @Override
@@ -134,10 +158,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        // Se a tela for trocada, aborta o frame preventivamente
-        if (!input(delta)) {
-            return;
-        }
+        if (!input(delta)) return;
         logic(delta);
         draw(delta);
     }
@@ -149,19 +170,14 @@ public class GameScreen implements Screen {
             return false;
         }
 
-        // Toggles baseados no consumo do trigger dinâmico
         if (playerController.consumeFullscreenToggle()) {
-            if (Gdx.graphics.isFullscreen()) {
-                Gdx.graphics.setWindowedMode(1280, 720);
-            } else {
-                Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
-            }
+            if (Gdx.graphics.isFullscreen()) Gdx.graphics.setWindowedMode(1280, 720);
+            else Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
         }
 
         if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
         if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
 
-        // Desprojeção Geométrica (Transforma Pixels do Mouse na Tela em Pixels Cartesianos da Câmera Ativa)
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
@@ -172,11 +188,9 @@ public class GameScreen implements Screen {
     private void logic(float delta) {
         player.atualizarLogicaAtaque(delta, morcegos);
 
-        // Conversão linear: Vetor Cartesiano (x, y) -> Ponto Isométrico na Tela
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
-        // LÓGICA DAS SOMBRAS DO DASH (POOLING)
         if (player.estaDandoDash) {
             tempoCriarProximaSombra -= delta;
             if (tempoCriarProximaSombra <= 0) {
@@ -193,7 +207,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Loop Reverso para remoção segura e Devolução à Pool
         for (int i = sombrasAtivas.size - 1; i >= 0; i--) {
             SombraDash sombra = sombrasAtivas.get(i);
             sombra.tempoDeVida -= delta;
@@ -205,9 +218,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // LÓGICA E POOLING DOS MORCEGOS
-
-        // Sistema Gerenciador de Respawn do Mapa
         if (morcegos.size < max_morcegos_no_mapa) {
             timerRespawnMorcego += delta;
             float tempo_respawn_morcego = 3.0f;
@@ -219,25 +229,21 @@ public class GameScreen implements Screen {
 
         for (int i = morcegos.size - 1; i >= 0; i--) {
             Morcego morcego = morcegos.get(i);
-
             if (!morcego.isAtivo) {
                 morcegos.removeIndex(i);
                 morcegoPool.free(morcego);
                 continue;
             }
-
-            // Atualiza apenas morcegos que estão vivos
             morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
         }
 
-        // Camera follow
         float offsetCameraY = viewport_height / 4f;
         camera.position.set(screenX, screenY + offsetCameraY, 0);
         camera.update();
     }
 
     private void draw(float delta) {
-        Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1);
+        Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         viewport.apply();
@@ -245,7 +251,6 @@ public class GameScreen implements Screen {
         batch.begin();
         batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
-        // Preparação do Array para o Z-Sorting
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
@@ -264,11 +269,8 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(pedra.renderObj);
         }
 
-        for (SombraDash sombra : sombrasAtivas) {
-            listaDeDesenho.add(sombra.render);
-        }
+        for (SombraDash sombra : sombrasAtivas) listaDeDesenho.add(sombra.render);
 
-        // Z-Sorting: Ordenação decrescente baseada na coordenada Y de visualização
         listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
             @Override
             public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
@@ -285,22 +287,64 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
+        // ----------------------------------------------------
+        // SISTEMA DE FOG E LUZ 2D (FRAMEBUFFER E BLEND)
+        // ----------------------------------------------------
+
+        // 1. Inicia a interceptação de desenho para o nosso FrameBuffer (ao invés da tela do monitor)
+        lightBuffer.begin();
+
+        // Limpa o Framebuffer pintando-o com a Escuridão Ambiente (Azul bem escuro e opaco)
+        Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        // 2. Mistura Aditiva: Todas as luzes que desenharmos vão se SOMAR, tornando o pixel mais branco
+        batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+
+        // Define a luz do jogador
+        float raioVisao = 500f;
+        float luzX = screenX - (raioVisao / 2f);
+        float luzY = screenY - (raioVisao / 2f) + (tile_height); // Leve offset Y para centralizar no peito do char
+
+        // Desenha o carimbo de luz. Como a cor base do Pincel é Branca, os pixels desta região ficam = 1.0 (Brancos)
+        batch.draw(lightBrush, luzX, luzY, raioVisao, raioVisao);
+
+        // Dica: Se quiser que as pedras brilhem ou que inimigos emitam luz, basta fazer um loop desenhando o brush neles!
+
+        batch.end();
+        lightBuffer.end();
+
+        // 3. Hora de aplicar a camada do FrameBuffer (Luzes + Escuridão) por cima do Mundo do Jogo já desenhado
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+
+        // 4. Mistura Multiplicativa Escura
+        batch.setBlendFunction(GL20.GL_DST_COLOR, GL20.GL_ZERO);
+
+        // Desenhamos a aba FBO amarrada na posição da nossa Camera para cobrir o monitor exatamente onde ele está olhando
+        batch.draw(lightBufferRegion,
+            camera.position.x - viewport.getWorldWidth() / 2f,
+            camera.position.y - viewport.getWorldHeight() / 2f,
+            viewport.getWorldWidth(), viewport.getWorldHeight());
+
+        // 5. Devolvemos a configuração da placa de vídeo ao padrão tradicional de Transparência do LibGDX
+        batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        batch.end();
+
+        // ----------------------------------------------------
+
         if (mostrarHitboxes) {
             shapeRenderer.setProjectionMatrix(camera.combined);
-
-            // Desenhando Hitboxes
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
             shapeRenderer.setColor(Color.YELLOW);
-            for (Pedra pedra : pedrasDoMapa) {
-                desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
-            }
+            for (Pedra pedra : pedrasDoMapa) desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
 
             shapeRenderer.setColor(Color.RED);
             for (Morcego morcego : morcegos) {
-                if (morcego.isAtivo) {
-                    desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
-                }
+                if (morcego.isAtivo) desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
             }
 
             shapeRenderer.setColor(Color.GREEN);
@@ -312,7 +356,6 @@ public class GameScreen implements Screen {
             }
             shapeRenderer.end();
 
-            // Desenhando formas sólidas (Barras de vida do inimigo)
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo) {
@@ -335,19 +378,14 @@ public class GameScreen implements Screen {
             shapeRenderer.end();
         }
 
-        // Camada de Projeção UI Fixa
         if (mostrarDebugInfo) {
             uiViewport.apply();
             batch.setProjectionMatrix(uiCamera.combined);
             batch.begin();
 
             String textoOverlay = String.format(
-                "FPS: %d\n" +
-                    "POS MUNDO:\nX: %.2f | Y: %.2f\n" +
-                    "POS TELA:\nX: %.1f | Y: %.1f",
-                Gdx.graphics.getFramesPerSecond(),
-                player.posicaoMundo.x, player.posicaoMundo.y,
-                screenX, screenY
+                "FPS: %d\nPOS MUNDO:\nX: %.2f | Y: %.2f\nPOS TELA:\nX: %.1f | Y: %.1f",
+                Gdx.graphics.getFramesPerSecond(), player.posicaoMundo.x, player.posicaoMundo.y, screenX, screenY
             );
 
             font.setColor(Color.GREEN);
@@ -356,7 +394,6 @@ public class GameScreen implements Screen {
         }
     }
 
-    // Método Utilitário de Spawn (puxa da Pool)
     private void gerarMorcegoAleatorio() {
         float px = MathUtils.random(2f, limiteMapaY - 2f);
         float py = MathUtils.random(-limiteMapaX + 2f, -2f);
@@ -365,7 +402,6 @@ public class GameScreen implements Screen {
         morcegos.add(m);
     }
 
-    // Auxiliar: Projeta um retângulo AABB 2D plano em um losango angular simulando a isometria
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
         float x1 = rect.x, y1 = rect.y;
         float x2 = rect.x + rect.width, y2 = rect.y;
@@ -396,5 +432,8 @@ public class GameScreen implements Screen {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
+        // Best Practice: O Framebuffer e sua textura dinâmica criam alocações brutas fora do GC, devemos descarta-los.
+        lightBuffer.dispose();
+        lightBrush.dispose();
     }
 }
