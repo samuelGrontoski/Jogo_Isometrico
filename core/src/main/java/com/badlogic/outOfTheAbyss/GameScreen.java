@@ -84,9 +84,6 @@ public class GameScreen implements Screen {
     private final int max_morcegos_no_mapa = 10;
     private final Texture textureMorcegoFly;
 
-    Array<Pedra> pedrasDoMapa = new Array<>();
-    int quantidade_pedras = 50;
-
     Array<ObjetoRenderizavel> paredesRenderizaveis = new Array<>();
 
     private final Vector3 auxMousePos = new Vector3();
@@ -178,13 +175,6 @@ public class GameScreen implements Screen {
 
         lightBrush = gerarTexturaLuz(256);
 
-        TextureRegion pedraRegion = new TextureRegion(game.assets.get("mapa/objetos/pedras/pedra_01.png", Texture.class));
-        for (int i = 0; i < quantidade_pedras; i++) {
-            float px = MathUtils.random(2f, limiteMapaY - 2f);
-            float py = MathUtils.random(-limiteMapaX + 2f, -2f);
-            pedrasDoMapa.add(new Pedra(new Vector2(px, py), pedraRegion));
-        }
-
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
         Vector2 posicaoInicial = new Vector2(23f, -80f);
@@ -246,7 +236,7 @@ public class GameScreen implements Screen {
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
-        player.updateInput(delta, pedrasDoMapa, hitboxesMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+        player.updateInput(delta, hitboxesMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
         return true;
     }
 
@@ -334,11 +324,6 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(morcego.renderObj);
         }
 
-        for (Pedra pedra : pedrasDoMapa) {
-            pedra.prepararZSorting(tile_width, tile_height);
-            listaDeDesenho.add(pedra.renderObj);
-        }
-
         for (ObjetoRenderizavel parede : paredesRenderizaveis) {
             listaDeDesenho.add(parede);
         }
@@ -396,9 +381,6 @@ public class GameScreen implements Screen {
             for (Rectangle mapRect : hitboxesMapa) {
                 desenharRetanguloIsometrico(mapRect, shapeRenderer);
             }
-
-            shapeRenderer.setColor(Color.YELLOW);
-            for (Pedra pedra : pedrasDoMapa) desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
 
             shapeRenderer.setColor(Color.RED);
             for (Morcego morcego : morcegos) {

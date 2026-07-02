@@ -86,7 +86,7 @@ public class Player {
         return anim;
     }
 
-    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, Array<Rectangle> hitboxesMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+    public void updateInput(float delta, Array<Rectangle> hitboxesMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (cooldownDashTimer < tempoRecargaDash) {
             cooldownDashTimer += delta;
         }
@@ -115,7 +115,7 @@ public class Player {
 
         verificarAtaque(mouseMundoX, mouseMundoY);
         // Aplica e verifica a colisão tanto contra as pedras, quanto contra o array de blocos magnéticos lidos do TMX
-        aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa, hitboxesMapa);
+        aplicarMovimentoComColisao(moveSpeed, hitboxesMapa);
 
         restringirAosLimitesDoMapa(limiteX, limiteY);
 
@@ -202,7 +202,7 @@ public class Player {
         }
     }
 
-    private void aplicarMovimentoComColisao(float moveSpeed, Array<Pedra> pedrasDoMapa, Array<Rectangle> hitboxesMapa) {
+    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa) {
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
             float oldX = posicaoMundo.x;
@@ -210,19 +210,12 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            if (verificaColisao(pedrasDoMapa) || verificaColisaoMapa(hitboxesMapa)) posicaoMundo.x = oldX;
+            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            if (verificaColisao(pedrasDoMapa) || verificaColisaoMapa(hitboxesMapa)) posicaoMundo.y = oldY;
+            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.y = oldY;
         }
-    }
-
-    private boolean verificaColisao(Array<Pedra> pedras) {
-        for (Pedra p : pedras) {
-            if (hitbox.overlaps(p.hitboxColisao)) return true;
-        }
-        return false;
     }
 
     private boolean verificaColisaoMapa(Array<Rectangle> hitboxesMapa) {

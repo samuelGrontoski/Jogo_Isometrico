@@ -43,9 +43,7 @@ public class JogoIsometrico extends Game {
         assets.load("background/tela-menu.png", Texture.class);
         assets.load("botao/botao_jogar.png", Texture.class);
         assets.load("botao/botao_sair.png", Texture.class);
-        // Carregando o mapa do Tiled
         assets.load("mapa/map_cave.tmx", TiledMap.class);
-        assets.load("mapa/objetos/pedras/pedra_01.png", Texture.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
         assets.load("personagem/personagem_idle_se.png", Texture.class);
         assets.load("personagem/personagem_idle_sw.png", Texture.class);
