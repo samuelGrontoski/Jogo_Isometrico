@@ -152,7 +152,7 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(4f, -95f);
+        Vector2 posicaoInicial = new Vector2(23f, -80f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
