@@ -15,4 +15,8 @@ public class ObjetoRenderizavel {
     // Metadados rígidos para Desempate de Camadas (Z-Index)
     public boolean isElementoMapa = false;
     public int zIndexMapa = 0;
+    public float originX, originY, width, height;
+    public float scaleX = 1f, scaleY = 1f;
+    public float grausRotacao = 0f;
+    public boolean isTransformado = false;
 }

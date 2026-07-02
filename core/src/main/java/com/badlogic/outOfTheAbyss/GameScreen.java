@@ -48,6 +48,17 @@ public class GameScreen implements Screen {
 
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
+    private final Comparator<ObjetoRenderizavel> zIndexComparator = new Comparator<ObjetoRenderizavel>() {
+        @Override
+        public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
+            int compareProfundidade = Float.compare(obj2.sortY, obj1.sortY);
+            if (compareProfundidade == 0 && obj1.isElementoMapa && obj2.isElementoMapa) {
+                return Integer.compare(obj1.zIndexMapa, obj2.zIndexMapa);
+            }
+            return compareProfundidade;
+        }
+    };
+
     TiledMap mapaTiled;
     IsometricTiledMapRenderer mapRenderer;
 
@@ -164,10 +175,10 @@ public class GameScreen implements Screen {
                             obj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
                             obj.drawY = pScreenY + cell.getTile().getOffsetY();
 
-                            if (nomeCamada.equals("paredes")) {
-                                obj.sortY = pScreenY;
-                            } else {
+                            if (nomeCamada.equals("Teias")) {
                                 obj.sortY = -100000f - i;
+                            } else {
+                                obj.sortY = pScreenY - (i * 0.01f);
                             }
 
                             obj.isElementoMapa = true;
@@ -176,6 +187,18 @@ public class GameScreen implements Screen {
                             obj.flipX = cell.getFlipHorizontally();
                             obj.flipY = cell.getFlipVertically();
                             obj.rotation = cell.getRotation();
+
+                            // NOVO: Pré-calcula TUDO na RAM durante a tela de loading.
+                            obj.isTransformado = obj.flipX || obj.flipY || obj.rotation != 0;
+                            if (obj.isTransformado) {
+                                obj.width = obj.textura.getRegionWidth();
+                                obj.height = obj.textura.getRegionHeight();
+                                obj.originX = obj.width / 2f;
+                                obj.originY = obj.height / 2f;
+                                obj.scaleX = obj.flipX ? -1f : 1f;
+                                obj.scaleY = obj.flipY ? -1f : 1f;
+                                obj.grausRotacao = obj.rotation * -90f;
+                            }
 
                             elementosMapaRenderizaveis.add(obj);
                         }
@@ -339,42 +362,45 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(morcego.renderObj);
         }
 
-        // Adiciona TODOS os elementos visíveis das 4 camadas de uma só vez
+        // --- INÍCIO DA ALTERAÇÃO: CAMERA CULLING (OTIMIZAÇÃO) ---
+
+        // 1. Definimos uma margem de segurança (em pixels) para que texturas grandes
+        // não desapareçam de forma brusca quando o centro delas sair da tela.
+        float margemCulling = 256f;
+
+        // 2. Calculamos as bordas da visão atual da câmera no mundo
+        float cameraEsquerda = camera.position.x - (viewport.getWorldWidth() / 2f) - margemCulling;
+        float cameraDireita  = camera.position.x + (viewport.getWorldWidth() / 2f) + margemCulling;
+        float cameraBaixo    = camera.position.y - (viewport.getWorldHeight() / 2f) - margemCulling;
+        float cameraCima     = camera.position.y + (viewport.getWorldHeight() / 2f) + margemCulling;
+
+        // 3. Adiciona apenas os elementos que estão dentro da visão da câmera
         for (ObjetoRenderizavel elementoMapa : elementosMapaRenderizaveis) {
-            listaDeDesenho.add(elementoMapa);
+
+            // Checagem AABB (Axis-Aligned Bounding Box) ultra rápida
+            if (elementoMapa.drawX >= cameraEsquerda && elementoMapa.drawX <= cameraDireita &&
+                elementoMapa.drawY >= cameraBaixo    && elementoMapa.drawY <= cameraCima) {
+
+                listaDeDesenho.add(elementoMapa);
+            }
         }
+
+        // --- FIM DA ALTERAÇÃO ---
 
         for (SombraDash sombra : sombrasAtivas) listaDeDesenho.add(sombra.render);
 
-        listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
-            @Override
-            public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
-                int compareProfundidade = Float.compare(obj2.sortY, obj1.sortY);
-
-                // Se as duas texturas caírem EXATAMENTE na mesma célula (empate) e forem mapa
-                if (compareProfundidade == 0 && obj1.isElementoMapa && obj2.isElementoMapa) {
-                    // Força a obediência da ordem da camada (Paredes antes de Teias, etc)
-                    return Integer.compare(obj1.zIndexMapa, obj2.zIndexMapa);
-                }
-
-                // Se estiverem em células diferentes, obedece o 3D nativo normalmente
-                return compareProfundidade;
-            }
-        });
+        listaDeDesenho.sort(zIndexComparator);
 
         for (ObjetoRenderizavel obj : listaDeDesenho) {
             if (obj.textura != null) {
                 batch.setColor(1f, 1f, 1f, obj.alpha);
 
-                if (obj.flipX || obj.flipY || obj.rotation != 0) {
-                    float w = obj.textura.getRegionWidth();
-                    float h = obj.textura.getRegionHeight();
-                    float originX = w / 2f;
-                    float originY = h / 2f;
-                    float scaleX = obj.flipX ? -1f : 1f;
-                    float scaleY = obj.flipY ? -1f : 1f;
-                    float rot = obj.rotation * -90f;
-                    batch.draw(obj.textura, obj.drawX, obj.drawY, originX, originY, w, h, scaleX, scaleY, rot);
+                // Checa direto a flag booleana e repassa as constantes
+                if (obj.isTransformado) {
+                    batch.draw(obj.textura, obj.drawX, obj.drawY,
+                        obj.originX, obj.originY,
+                        obj.width, obj.height,
+                        obj.scaleX, obj.scaleY, obj.grausRotacao);
                 } else {
                     batch.draw(obj.textura, obj.drawX, obj.drawY);
                 }
