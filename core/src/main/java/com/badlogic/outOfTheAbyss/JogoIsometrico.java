@@ -22,27 +22,30 @@ public class JogoIsometrico extends Game {
         font = new BitmapFont();
         viewport = new FitViewport(640, 360);
 
-        // Desativa posições inteiras para garantir renderização de texto sub-pixel mais suave
         font.setUseIntegerPositions(false);
         font.getData().setScale(viewport.getWorldHeight() / Gdx.graphics.getHeight());
 
         assets = new AssetManager();
-
-        // Define o loader para mapas do Tiled antes de enfileirar
         assets.setLoader(TiledMap.class, new TmxMapLoader());
 
-        // Enfileira os arquivos na RAM, mas NÃO bloqueia a execução
-        carregarAssets();
+        // 1. Enfileira apenas os recursos da tela de Menu
+        carregarAssetsMenu();
 
-        // Delega o controle inicial para a tela de loading assíncrono
-        this.setScreen(new TelaCarregamento(this));
+        // 2. Trava a thread da aplicação milissegundos para carregar os assets do Menu instantaneamente
+        assets.finishLoading();
+
+        // 3. Inicia o jogo diretamente no Menu, sem passar pelo Loading
+        this.setScreen(new MenuInicial(this));
     }
 
-    // Enfileiramento das texturas que o AssetManager buscará
-    private void carregarAssets() {
+    private void carregarAssetsMenu() {
         assets.load("background/tela-menu.png", Texture.class);
         assets.load("botao/botao_jogar.png", Texture.class);
         assets.load("botao/botao_sair.png", Texture.class);
+    }
+
+    // Chamado pelo MenuInicial quando o botão de Jogar for clicado
+    public void carregarAssetsJogo() {
         assets.load("mapa/map_cave.tmx", TiledMap.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
         assets.load("personagem/personagem_idle_se.png", Texture.class);
@@ -51,13 +54,11 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/personagem_run_sw.png", Texture.class);
     }
 
-    // Delega a rotina de render() para a Screen ativa
     @Override
     public void render() {
         super.render();
     }
 
-    // Libera os recursos estáticos globais no encerramento da aplicação
     @Override
     public void dispose() {
         batch.dispose();

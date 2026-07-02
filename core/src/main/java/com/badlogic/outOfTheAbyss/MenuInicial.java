@@ -3,7 +3,9 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -25,6 +27,12 @@ public class MenuInicial implements Screen {
     Texture playButtonTexture;
     Texture exitButtonTexture;
 
+    // Variáveis de Transição (Fade Out)
+    private boolean iniciandoTransicao = false;
+    private float transicaoAlpha = 0f;
+    private final float VELOCIDADE_FADE = 1.0f;
+    private Texture pixelPreto;
+
     public MenuInicial(final JogoIsometrico game) {
         this.game = game;
         stage = new Stage(new FitViewport(640, 360));
@@ -34,6 +42,12 @@ public class MenuInicial implements Screen {
         playButtonTexture = game.assets.get("botao/botao_jogar.png", Texture.class);
         exitButtonTexture = game.assets.get("botao/botao_sair.png", Texture.class);
 
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixmap.setColor(Color.BLACK);
+        pixmap.fill();
+        pixelPreto = new Texture(pixmap);
+        pixmap.dispose();
+
         // Estilização e instanciação do botão de Jogar
         ImageButton.ImageButtonStyle playStyle = new ImageButton.ImageButtonStyle();
         playStyle.imageUp = new TextureRegionDrawable(new TextureRegion(playButtonTexture));
@@ -42,8 +56,10 @@ public class MenuInicial implements Screen {
         playButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new GameScreen(game));
-                dispose();
+                if (!iniciandoTransicao) {
+                    game.carregarAssetsJogo();
+                    iniciandoTransicao = true;
+                }
             }
             // Ações interpoladas (Actions) acionadas ao entrar/sair do Hover do mouse
             @Override
@@ -138,6 +154,33 @@ public class MenuInicial implements Screen {
 
         stage.act(delta);
         stage.draw();
+
+        // DESENHA A CORTINA PRETA POR CIMA DE TUDO (EFEITO FADE OUT)
+        if (iniciandoTransicao) {
+            // 1. Limita o tempo do frame para evitar que o engasgo do PC pule a animação
+            if (delta > 0.05f) delta = 0.05f;
+
+            transicaoAlpha += delta * VELOCIDADE_FADE;
+
+            // 2. Garante explicitamente a ativação do Alpha (Pois o Stage pode ter desativado)
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+            // 3. Desenha o fundo preto PRIMEIRO
+            game.batch.begin();
+            game.batch.setColor(1f, 1f, 1f, Math.min(transicaoAlpha, 1f));
+            // Desenhamos gigante para garantir que frestas não fiquem visíveis caso o jogador mude a resolução
+            game.batch.draw(pixelPreto, -200, -200, 2000, 2000);
+            game.batch.setColor(Color.WHITE); // Limpa a cor do batch
+            game.batch.end();
+
+            // 4. SÓ MUDA DE TELA após exibir a tela totalmente preta (e com uma sobrinha de tempo para os olhos)
+            if (transicaoAlpha >= 1.05f) {
+                game.setScreen(new TelaCarregamento(game));
+                dispose();
+                return;
+            }
+        }
     }
 
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
@@ -148,5 +191,6 @@ public class MenuInicial implements Screen {
     @Override
     public void dispose() {
         stage.dispose();
+        pixelPreto.dispose();
     }
 }

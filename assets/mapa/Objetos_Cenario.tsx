@@ -173,9 +173,15 @@
   <image source="Objetos_Cenario/WraithIsland_FX_SoulVortex_01_B.png" width="192" height="144"/>
  </tile>
  <tile id="57">
+  <properties>
+   <property name="emiteLuzVermelha" type="bool" value="true"/>
+  </properties>
   <image source="Objetos_Cenario/WraithIsland_Lucent_Lamp_05_A.png" width="86" height="102"/>
  </tile>
  <tile id="58">
+  <properties>
+   <property name="emiteLuzVermelha" type="bool" value="true"/>
+  </properties>
   <image source="Objetos_Cenario/WraithIsland_Lucent_Lamp_05_B.png" width="70" height="144"/>
  </tile>
  <tile id="59">

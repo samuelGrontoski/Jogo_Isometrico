@@ -97,7 +97,15 @@ public class GameScreen implements Screen {
 
     Array<ObjetoRenderizavel> elementosMapaRenderizaveis = new Array<>();
 
+    Array<Vector2> luzesVermelhas = new Array<>();
+    Array<Vector2> luzesAzuis = new Array<>();
+
     private final Vector3 auxMousePos = new Vector3();
+
+    // Variáveis da transição
+    private float transicaoAlpha = 1f;
+    private Texture pixelPreto;
+    private final float VELOCIDADE_FADE = 1.0f;
 
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
@@ -113,6 +121,12 @@ public class GameScreen implements Screen {
 
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
+
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixmap.setColor(Color.BLACK);
+        pixmap.fill();
+        pixelPreto = new Texture(pixmap);
+        pixmap.dispose();
 
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
 
@@ -148,8 +162,8 @@ public class GameScreen implements Screen {
         }
 
         // 3. EXTRAÇÃO DE MÚLTIPLAS CAMADAS PARA O Z-SORTING (Algoritmo do Pintor)
-        // A ordem no Array dita a ordem de sobreposição física!
-        String[] camadasZSort = {"paredes", "Cristal", "Teias", "Objetos_Cenario"};
+        // A ordem no Array dita a ordem de sobreposição física
+        String[] camadasZSort = {"simbolos_sala_boss", "paredes", "Cristal", "Teias", "Objetos_Cenario"};
 
         for (int i = 0; i < camadasZSort.length; i++) {
             String nomeCamada = camadasZSort[i];
@@ -175,7 +189,9 @@ public class GameScreen implements Screen {
                             obj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
                             obj.drawY = pScreenY + cell.getTile().getOffsetY();
 
-                            if (nomeCamada.equals("Teias")) {
+                            if (nomeCamada.equals("simbolos_sala_boss")) {
+                                obj.sortY = 100000f;
+                            } else if (nomeCamada.equals("Teias")) {
                                 obj.sortY = -100000f - i;
                             } else {
                                 obj.sortY = pScreenY - (i * 0.01f);
@@ -183,6 +199,18 @@ public class GameScreen implements Screen {
 
                             obj.isElementoMapa = true;
                             obj.zIndexMapa = i; // 0=Paredes, 1=Cristal, 2=Teias, 3=Objetos
+
+                            Boolean emiteLuzVermelha = cell.getTile().getProperties().get("emiteLuzVermelha", Boolean.class);
+                            if (emiteLuzVermelha != null && emiteLuzVermelha) {
+                                float elevacaoPoste = 30f;
+                                luzesVermelhas.add(new Vector2(pScreenX, pScreenY + elevacaoPoste));
+                            }
+
+                            Boolean emiteLuzAzul = cell.getTile().getProperties().get("emiteLuzAzul", Boolean.class);
+                            if (emiteLuzAzul != null && emiteLuzAzul) {
+                                float elevacaoCristal = 10f;
+                                luzesAzuis.add(new Vector2(pScreenX, pScreenY + elevacaoCristal));
+                            }
 
                             obj.flipX = cell.getFlipHorizontally();
                             obj.flipY = cell.getFlipVertically();
@@ -366,7 +394,7 @@ public class GameScreen implements Screen {
 
         // 1. Definimos uma margem de segurança (em pixels) para que texturas grandes
         // não desapareçam de forma brusca quando o centro delas sair da tela.
-        float margemCulling = 256f;
+        float margemCulling = 1024f;
 
         // 2. Calculamos as bordas da visão atual da câmera no mundo
         float cameraEsquerda = camera.position.x - (viewport.getWorldWidth() / 2f) - margemCulling;
@@ -416,6 +444,31 @@ public class GameScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+
+        // --- INÍCIO DA ALTERAÇÃO DAS LUZES ---
+
+        // 1. Pinta o SpriteBatch de Vermelho
+        batch.setColor(1f, 0.2f, 0.2f, 1f);
+        float raioLuzPoste = 350f;
+        for (Vector2 posLuz : luzesVermelhas) {
+            float lx = posLuz.x - (raioLuzPoste / 2f);
+            float ly = posLuz.y - (raioLuzPoste / 2f);
+            batch.draw(lightBrush, lx, ly, raioLuzPoste, raioLuzPoste);
+        }
+
+        // 2. Pinta o SpriteBatch de Azul (R=0.2, G=0.4, B=1.0)
+        batch.setColor(0.2f, 0.4f, 1f, 1f);
+        float raioLuzCristal = 400f; // Cristais iluminam uma área menor
+        for (Vector2 posLuz : luzesAzuis) {
+            float lx = posLuz.x - (raioLuzCristal / 2f);
+            float ly = posLuz.y - (raioLuzCristal / 2f);
+            batch.draw(lightBrush, lx, ly, raioLuzCristal, raioLuzCristal);
+        }
+
+        // 3. RETORNA a cor para Branco para a luz do jogador não bugar!
+        batch.setColor(Color.WHITE);
+
+        // --- FIM DA ALTERAÇÃO DAS LUZES ---
 
         // Mantendo seu raio de visão gigante
         float raioVisao = 700f;
@@ -495,6 +548,26 @@ public class GameScreen implements Screen {
             font.draw(batch, textoOverlay, 15, viewport_height - 15);
             batch.end();
         }
+
+        // --- CORTINA DE ILUMINAÇÃO (FADE IN DO JOGO) ---
+        if (transicaoAlpha > 0f) {
+            transicaoAlpha -= delta * VELOCIDADE_FADE;
+            if (transicaoAlpha < 0f) transicaoAlpha = 0f;
+
+            uiViewport.apply();
+            batch.setProjectionMatrix(uiCamera.combined);
+
+            // Ativa blend explicitly caso os modos anteriores tenham desativado
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+            batch.begin();
+            batch.setColor(1f, 1f, 1f, transicaoAlpha);
+            // Desenha esticado cobrindo a tela toda
+            batch.draw(pixelPreto, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
+            batch.setColor(Color.WHITE);
+            batch.end();
+        }
     }
 
     private void gerarMorcegoAleatorio() {
@@ -538,5 +611,6 @@ public class GameScreen implements Screen {
         lightBuffer.dispose();
         lightBrush.dispose();
         mapaTiled.dispose();
+        pixelPreto.dispose();
     }
 }
