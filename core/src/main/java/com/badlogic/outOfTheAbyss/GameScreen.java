@@ -81,10 +81,10 @@ public class GameScreen implements Screen {
     };
     Array<Morcego> morcegos = new Array<>();
     private float timerRespawnMorcego = 0f;
-    private final int max_morcegos_no_mapa = 10;
+    private final int max_morcegos_no_mapa = 0;
     private final Texture textureMorcegoFly;
 
-    Array<ObjetoRenderizavel> paredesRenderizaveis = new Array<>();
+    Array<ObjetoRenderizavel> elementosMapaRenderizaveis = new Array<>();
 
     private final Vector3 auxMousePos = new Vector3();
 
@@ -136,34 +136,49 @@ public class GameScreen implements Screen {
             }
         }
 
-        TiledMapTileLayer paredesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("paredes");
-        if (paredesLayer != null) {
-            // Oculta a camada para que a LibGDX não a desenhe no fundo por padrão
-            paredesLayer.setVisible(false);
+        // 3. EXTRAÇÃO DE MÚLTIPLAS CAMADAS PARA O Z-SORTING (Algoritmo do Pintor)
+        // A ordem no Array dita a ordem de sobreposição física!
+        String[] camadasZSort = {"paredes", "Cristal", "Teias", "Objetos_Cenario"};
 
-            for (int col = 0; col < paredesLayer.getWidth(); col++) {
-                for (int row = 0; row < paredesLayer.getHeight(); row++) {
-                    TiledMapTileLayer.Cell cell = paredesLayer.getCell(col, row);
+        for (int i = 0; i < camadasZSort.length; i++) {
+            String nomeCamada = camadasZSort[i];
+            TiledMapTileLayer layer = (TiledMapTileLayer) mapaTiled.getLayers().get(nomeCamada);
 
-                    if (cell != null && cell.getTile() != null) {
-                        float worldX = row;
-                        float worldY = -col;
+            if (layer != null) {
+                layer.setVisible(false);
 
-                        // A mesma matemática de tela que o seu player usa!
-                        float pScreenX = (worldX - worldY) * (tile_width / 2f);
-                        float pScreenY = (worldX + worldY) * (tile_height / 2f);
+                for (int col = 0; col < layer.getWidth(); col++) {
+                    for (int row = 0; row < layer.getHeight(); row++) {
+                        TiledMapTileLayer.Cell cell = layer.getCell(col, row);
 
-                        ObjetoRenderizavel paredeObj = new ObjetoRenderizavel();
-                        paredeObj.textura = cell.getTile().getTextureRegion();
+                        if (cell != null && cell.getTile() != null) {
+                            float worldX = row;
+                            float worldY = -col;
 
-                        // O offset (-tile_width / 2f) casa o centro isométrico com o desenho padrão da engine
-                        paredeObj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
-                        paredeObj.drawY = pScreenY + cell.getTile().getOffsetY();
+                            float pScreenX = (worldX - worldY) * (tile_width / 2f);
+                            float pScreenY = (worldX + worldY) * (tile_height / 2f);
 
-                        // O pulo do gato: Informamos a coordenada da base da parede para ordenar a profundidade
-                        paredeObj.sortY = pScreenY;
+                            ObjetoRenderizavel obj = new ObjetoRenderizavel();
+                            obj.textura = cell.getTile().getTextureRegion();
 
-                        paredesRenderizaveis.add(paredeObj);
+                            obj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
+                            obj.drawY = pScreenY + cell.getTile().getOffsetY();
+
+                            if (nomeCamada.equals("paredes")) {
+                                obj.sortY = pScreenY;
+                            } else {
+                                obj.sortY = -100000f - i;
+                            }
+
+                            obj.isElementoMapa = true;
+                            obj.zIndexMapa = i; // 0=Paredes, 1=Cristal, 2=Teias, 3=Objetos
+
+                            obj.flipX = cell.getFlipHorizontally();
+                            obj.flipY = cell.getFlipVertically();
+                            obj.rotation = cell.getRotation();
+
+                            elementosMapaRenderizaveis.add(obj);
+                        }
                     }
                 }
             }
@@ -324,8 +339,9 @@ public class GameScreen implements Screen {
             listaDeDesenho.add(morcego.renderObj);
         }
 
-        for (ObjetoRenderizavel parede : paredesRenderizaveis) {
-            listaDeDesenho.add(parede);
+        // Adiciona TODOS os elementos visíveis das 4 camadas de uma só vez
+        for (ObjetoRenderizavel elementoMapa : elementosMapaRenderizaveis) {
+            listaDeDesenho.add(elementoMapa);
         }
 
         for (SombraDash sombra : sombrasAtivas) listaDeDesenho.add(sombra.render);
@@ -333,14 +349,35 @@ public class GameScreen implements Screen {
         listaDeDesenho.sort(new Comparator<ObjetoRenderizavel>() {
             @Override
             public int compare(ObjetoRenderizavel obj1, ObjetoRenderizavel obj2) {
-                return Float.compare(obj2.sortY, obj1.sortY);
+                int compareProfundidade = Float.compare(obj2.sortY, obj1.sortY);
+
+                // Se as duas texturas caírem EXATAMENTE na mesma célula (empate) e forem mapa
+                if (compareProfundidade == 0 && obj1.isElementoMapa && obj2.isElementoMapa) {
+                    // Força a obediência da ordem da camada (Paredes antes de Teias, etc)
+                    return Integer.compare(obj1.zIndexMapa, obj2.zIndexMapa);
+                }
+
+                // Se estiverem em células diferentes, obedece o 3D nativo normalmente
+                return compareProfundidade;
             }
         });
 
         for (ObjetoRenderizavel obj : listaDeDesenho) {
             if (obj.textura != null) {
                 batch.setColor(1f, 1f, 1f, obj.alpha);
-                batch.draw(obj.textura, obj.drawX, obj.drawY);
+
+                if (obj.flipX || obj.flipY || obj.rotation != 0) {
+                    float w = obj.textura.getRegionWidth();
+                    float h = obj.textura.getRegionHeight();
+                    float originX = w / 2f;
+                    float originY = h / 2f;
+                    float scaleX = obj.flipX ? -1f : 1f;
+                    float scaleY = obj.flipY ? -1f : 1f;
+                    float rot = obj.rotation * -90f;
+                    batch.draw(obj.textura, obj.drawX, obj.drawY, originX, originY, w, h, scaleX, scaleY, rot);
+                } else {
+                    batch.draw(obj.textura, obj.drawX, obj.drawY);
+                }
             }
         }
         batch.setColor(1f, 1f, 1f, 1f);
