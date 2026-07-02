@@ -29,7 +29,7 @@ public class TelaCarregamento implements Screen {
         this.game = game;
         this.camera = new OrthographicCamera();
         this.viewport = new FitViewport(640, 360, camera);
-        this.iconeCarregamento = new Texture("../assets/mapa/Icones/boot-icn-difficulty-zale-easy.png");
+        this.iconeCarregamento = new Texture("../assets/mapa/Icones/boot-icn-difficulty-valere-easy.png");
     }
 
     @Override
