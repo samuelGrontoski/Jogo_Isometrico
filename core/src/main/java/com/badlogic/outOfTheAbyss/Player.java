@@ -86,7 +86,7 @@ public class Player {
         return anim;
     }
 
-    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+    public void updateInput(float delta, Array<Pedra> pedrasDoMapa, Array<Rectangle> hitboxesMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (cooldownDashTimer < tempoRecargaDash) {
             cooldownDashTimer += delta;
         }
@@ -114,9 +114,9 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque(mouseMundoX, mouseMundoY);
-        aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa);
+        // Aplica e verifica a colisão tanto contra as pedras, quanto contra o array de blocos magnéticos lidos do TMX
+        aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa, hitboxesMapa);
 
-        // Mantemos o método ativo em assinatura, mas o comportamento interno não interfere mais
         restringirAosLimitesDoMapa(limiteX, limiteY);
 
         estaEmMovimento = !inputDirecao.isZero();
@@ -202,7 +202,7 @@ public class Player {
         }
     }
 
-    private void aplicarMovimentoComColisao(float moveSpeed, Array<Pedra> pedrasDoMapa) {
+    private void aplicarMovimentoComColisao(float moveSpeed, Array<Pedra> pedrasDoMapa, Array<Rectangle> hitboxesMapa) {
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
             float oldX = posicaoMundo.x;
@@ -210,11 +210,11 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            if (verificaColisao(pedrasDoMapa)) posicaoMundo.x = oldX;
+            if (verificaColisao(pedrasDoMapa) || verificaColisaoMapa(hitboxesMapa)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            if (verificaColisao(pedrasDoMapa)) posicaoMundo.y = oldY;
+            if (verificaColisao(pedrasDoMapa) || verificaColisaoMapa(hitboxesMapa)) posicaoMundo.y = oldY;
         }
     }
 
@@ -225,11 +225,14 @@ public class Player {
         return false;
     }
 
+    private boolean verificaColisaoMapa(Array<Rectangle> hitboxesMapa) {
+        for (Rectangle rect : hitboxesMapa) {
+            if (hitbox.overlaps(rect)) return true;
+        }
+        return false;
+    }
+
     private void restringirAosLimitesDoMapa(float limiteX, float limiteY) {
-        // [MODIFICAÇÃO] Código do limite clamp de cenário removido para permitir andar livremente.
-        // float margemPlayer = 1.5f;
-        // posicaoMundo.x = MathUtils.clamp(posicaoMundo.x, 0, limiteY - margemPlayer);
-        // posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
     }
 
     public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos) {

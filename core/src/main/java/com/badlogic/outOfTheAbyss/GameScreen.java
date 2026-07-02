@@ -12,7 +12,9 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.tiled.TiledMap;
+import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -33,6 +35,7 @@ public class GameScreen implements Screen {
 
     OrthographicCamera camera;
     Viewport viewport;
+    // Mantendo sua alteração de raio de visão/viewport
     final float viewport_width = 640;
     final float viewport_height = 360;
 
@@ -48,9 +51,10 @@ public class GameScreen implements Screen {
     TiledMap mapaTiled;
     IsometricTiledMapRenderer mapRenderer;
 
+    Array<Rectangle> hitboxesMapa = new Array<>();
+
     final float tile_width = 32f;
     final float tile_height = 16f;
-    // Adaptado para 100x100 blocos conforme seu mapa no Tiled
     float limiteMapaX = 100f;
     float limiteMapaY = 100f;
 
@@ -59,7 +63,6 @@ public class GameScreen implements Screen {
     Player player;
     PlayerController playerController;
 
-    // SISTEMA DE LUZ E NÉVOA (FOG OF WAR)
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
     Texture lightBrush;
@@ -101,11 +104,39 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
-        // Carrega o mapa em memória e vincula ao renderizador
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
+
+        // 1. O loop agora varre automaticamente todas as camadas existentes ("ground", "limites_mapa", "paredes")
+        // transladando todas para a esquerda de forma uníssona para manter alinhamento perfeito.
+        for (MapLayer layer : mapaTiled.getLayers()) {
+            layer.setOffsetX(-tile_width / 2f);
+        }
+
         mapRenderer = new IsometricTiledMapRenderer(mapaTiled, batch);
 
-        // INICIALIZAÇÃO DA LUZ
+        // 2. BUSCA DE COLISÕES: Modificado para ler estritamente os retângulos da camada de borda.
+        TiledMapTileLayer limitesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("limites_mapa");
+
+        if (limitesLayer != null) {
+            for (int col = 0; col < limitesLayer.getWidth(); col++) {
+                for (int row = 0; row < limitesLayer.getHeight(); row++) {
+                    TiledMapTileLayer.Cell cell = limitesLayer.getCell(col, row);
+                    if (cell != null && cell.getTile() != null) {
+                        // Verifica o boolean personalizado que você colocou no tileset de borda
+                        Boolean hasCollider = cell.getTile().getProperties().get("collider", Boolean.class);
+                        if (hasCollider != null && hasCollider) {
+
+                            // Traduz a coordenada da LibGDX para o seu mundo
+                            float worldX = row;
+                            float worldY = -col;
+
+                            hitboxesMapa.add(new Rectangle(worldX, worldY, 1f, 1f));
+                        }
+                    }
+                }
+            }
+        }
+
         lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
         lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
         lightBufferRegion.flip(false, true);
@@ -120,7 +151,7 @@ public class GameScreen implements Screen {
         }
 
         playerController = new PlayerController();
-        // Spawna exatamante no meio do mapa novo (50, -50)
+        // Mantendo o local de nascimento que você estipulou
         Vector2 posicaoInicial = new Vector2(4f, -95f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
@@ -180,7 +211,7 @@ public class GameScreen implements Screen {
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
-        player.updateInput(delta, pedrasDoMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+        player.updateInput(delta, pedrasDoMapa, hitboxesMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
         return true;
     }
 
@@ -247,8 +278,9 @@ public class GameScreen implements Screen {
 
         viewport.apply();
 
-        // 1. O mapa deve ser desenhado antes dos objetos customizáveis
         mapRenderer.setView(camera);
+        // O render() do IsometricTiledMapRenderer empilha perfeitamente e desenha
+        // o "ground", o "limites_mapa" e as "paredes" obedecendo a ordem e a transparência.
         mapRenderer.render();
 
         batch.setProjectionMatrix(camera.combined);
@@ -290,7 +322,6 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
-        // SISTEMA DE FOG E LUZ 2D
         lightBuffer.begin();
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -299,6 +330,7 @@ public class GameScreen implements Screen {
         batch.begin();
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
 
+        // Mantendo seu raio de visão gigante
         float raioVisao = 700f;
         float luzX = screenX - (raioVisao / 2f);
         float luzY = screenY - (raioVisao / 2f) + (tile_height);
@@ -320,6 +352,11 @@ public class GameScreen implements Screen {
         if (mostrarHitboxes) {
             shapeRenderer.setProjectionMatrix(camera.combined);
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
+            shapeRenderer.setColor(Color.MAGENTA);
+            for (Rectangle mapRect : hitboxesMapa) {
+                desenharRetanguloIsometrico(mapRect, shapeRenderer);
+            }
 
             shapeRenderer.setColor(Color.YELLOW);
             for (Pedra pedra : pedrasDoMapa) desenharRetanguloIsometrico(pedra.hitboxColisao, shapeRenderer);
@@ -416,8 +453,6 @@ public class GameScreen implements Screen {
         shapeRenderer.dispose();
         lightBuffer.dispose();
         lightBrush.dispose();
-        // Libera os recursos instanciados pelo mapa
         mapaTiled.dispose();
-        // O mapRenderer internamente NÃO mata o seu batch estático caso passamos via construtor (seguro e correto).
     }
 }
