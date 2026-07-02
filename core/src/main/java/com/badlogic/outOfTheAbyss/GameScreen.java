@@ -87,6 +87,8 @@ public class GameScreen implements Screen {
     Array<Pedra> pedrasDoMapa = new Array<>();
     int quantidade_pedras = 50;
 
+    Array<ObjetoRenderizavel> paredesRenderizaveis = new Array<>();
+
     private final Vector3 auxMousePos = new Vector3();
 
     public GameScreen(final JogoIsometrico game) {
@@ -132,6 +134,39 @@ public class GameScreen implements Screen {
 
                             hitboxesMapa.add(new Rectangle(worldX, worldY, 1f, 1f));
                         }
+                    }
+                }
+            }
+        }
+
+        TiledMapTileLayer paredesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("paredes");
+        if (paredesLayer != null) {
+            // Oculta a camada para que a LibGDX não a desenhe no fundo por padrão
+            paredesLayer.setVisible(false);
+
+            for (int col = 0; col < paredesLayer.getWidth(); col++) {
+                for (int row = 0; row < paredesLayer.getHeight(); row++) {
+                    TiledMapTileLayer.Cell cell = paredesLayer.getCell(col, row);
+
+                    if (cell != null && cell.getTile() != null) {
+                        float worldX = row;
+                        float worldY = -col;
+
+                        // A mesma matemática de tela que o seu player usa!
+                        float pScreenX = (worldX - worldY) * (tile_width / 2f);
+                        float pScreenY = (worldX + worldY) * (tile_height / 2f);
+
+                        ObjetoRenderizavel paredeObj = new ObjetoRenderizavel();
+                        paredeObj.textura = cell.getTile().getTextureRegion();
+
+                        // O offset (-tile_width / 2f) casa o centro isométrico com o desenho padrão da engine
+                        paredeObj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
+                        paredeObj.drawY = pScreenY + cell.getTile().getOffsetY();
+
+                        // O pulo do gato: Informamos a coordenada da base da parede para ordenar a profundidade
+                        paredeObj.sortY = pScreenY;
+
+                        paredesRenderizaveis.add(paredeObj);
                     }
                 }
             }
@@ -302,6 +337,10 @@ public class GameScreen implements Screen {
         for (Pedra pedra : pedrasDoMapa) {
             pedra.prepararZSorting(tile_width, tile_height);
             listaDeDesenho.add(pedra.renderObj);
+        }
+
+        for (ObjetoRenderizavel parede : paredesRenderizaveis) {
+            listaDeDesenho.add(parede);
         }
 
         for (SombraDash sombra : sombrasAtivas) listaDeDesenho.add(sombra.render);
