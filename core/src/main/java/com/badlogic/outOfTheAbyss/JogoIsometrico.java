@@ -6,6 +6,8 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.maps.tiled.TiledMap;
+import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 
 public class JogoIsometrico extends Game {
@@ -25,6 +27,10 @@ public class JogoIsometrico extends Game {
         font.getData().setScale(viewport.getWorldHeight() / Gdx.graphics.getHeight());
 
         assets = new AssetManager();
+
+        // Define o loader para mapas do Tiled antes de enfileirar
+        assets.setLoader(TiledMap.class, new TmxMapLoader());
+
         // Enfileira os arquivos na RAM, mas NÃO bloqueia a execução
         carregarAssets();
 
@@ -37,7 +43,8 @@ public class JogoIsometrico extends Game {
         assets.load("background/tela-menu.png", Texture.class);
         assets.load("botao/botao_jogar.png", Texture.class);
         assets.load("botao/botao_sair.png", Texture.class);
-        assets.load("mapa/mapa_simples.png", Texture.class);
+        // Carregando o mapa do Tiled
+        assets.load("mapa/map_cave.tmx", TiledMap.class);
         assets.load("mapa/objetos/pedras/pedra_01.png", Texture.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
         assets.load("personagem/personagem_idle_se.png", Texture.class);

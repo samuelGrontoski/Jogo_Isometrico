@@ -9,7 +9,6 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 
-// Entidade controlada pelo usuário. Centraliza Movimento, Física de Colisão, Status e Ações.
 public class Player {
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
@@ -20,15 +19,13 @@ public class Player {
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
 
-    // Controle de Ataque
     public boolean estaAtacando = false;
-    private boolean danoAplicado = false; // Garante hit instantâneo em vez de checagem per-frame
+    private boolean danoAplicado = false;
 
     public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
 
-    // Controle de Dash
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
     public final float duracaoDash = 0.15f;
@@ -95,7 +92,6 @@ public class Player {
         }
         inputDirecao.set(0, 0);
 
-        // Movement Lock enquanto ataca
         if (!estaAtacando && !estaDandoDash) {
             lerInputsController();
         }
@@ -119,6 +115,8 @@ public class Player {
 
         verificarAtaque(mouseMundoX, mouseMundoY);
         aplicarMovimentoComColisao(moveSpeed, pedrasDoMapa);
+
+        // Mantemos o método ativo em assinatura, mas o comportamento interno não interfere mais
         restringirAosLimitesDoMapa(limiteX, limiteY);
 
         estaEmMovimento = !inputDirecao.isZero();
@@ -145,30 +143,14 @@ public class Player {
             direcaoDash.set(inputDirecao).nor();
         } else {
             switch (direcaoAtual) {
-                case "N":
-                    direcaoDash.set(1, 1);
-                    break;
-                case "S":
-                    direcaoDash.set(-1, -1);
-                    break;
-                case "E":
-                    direcaoDash.set(1, -1);
-                    break;
-                case "W":
-                    direcaoDash.set(-1, 1);
-                    break;
-                case "NE":
-                    direcaoDash.set(1, 0);
-                    break;
-                case "NW":
-                    direcaoDash.set(0, 1);
-                    break;
-                case "SE":
-                    direcaoDash.set(0, -1);
-                    break;
-                case "SW":
-                    direcaoDash.set(-1, 0);
-                    break;
+                case "N": direcaoDash.set(1, 1); break;
+                case "S": direcaoDash.set(-1, -1); break;
+                case "E": direcaoDash.set(1, -1); break;
+                case "W": direcaoDash.set(-1, 1); break;
+                case "NE": direcaoDash.set(1, 0); break;
+                case "NW": direcaoDash.set(0, 1); break;
+                case "SE": direcaoDash.set(0, -1); break;
+                case "SW": direcaoDash.set(-1, 0); break;
             }
             direcaoDash.nor();
         }
@@ -180,7 +162,6 @@ public class Player {
             attackTimer = 0f;
             danoAplicado = false;
 
-            // Transf. Iso-Inversa: Tela -> Espaço Cartesiano do Tabuleiro
             float tileW = 32f;
             float tileH = 16f;
             float a = mouseMundoX / (tileW / 2f);
@@ -191,7 +172,6 @@ public class Player {
             float deltaX = mouseCartesianX - posicaoMundo.x;
             float deltaY = mouseCartesianY - posicaoMundo.y;
 
-            // Snapping Visual: Força a pose nos 8 eixos de 45°
             float angle = MathUtils.atan2(deltaY, deltaX) * MathUtils.radiansToDegrees;
             if (angle < 0) angle += 360f;
 
@@ -207,7 +187,6 @@ public class Player {
                 case 7: direcaoAtual = "E";  break;
             }
 
-            // Normalização de Lógica: Hitbox não trava; segue o cursor precisamente (360 graus)
             Vector2 vetorMira = new Vector2(deltaX, deltaY);
             if (!vetorMira.isZero()) {
                 vetorMira.nor();
@@ -247,16 +226,16 @@ public class Player {
     }
 
     private void restringirAosLimitesDoMapa(float limiteX, float limiteY) {
-        float margemPlayer = 1.5f;
-        posicaoMundo.x = MathUtils.clamp(posicaoMundo.x, 0, limiteY - margemPlayer);
-        posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
+        // [MODIFICAÇÃO] Código do limite clamp de cenário removido para permitir andar livremente.
+        // float margemPlayer = 1.5f;
+        // posicaoMundo.x = MathUtils.clamp(posicaoMundo.x, 0, limiteY - margemPlayer);
+        // posicaoMundo.y = MathUtils.clamp(posicaoMundo.y, -limiteX, -margemPlayer);
     }
 
     public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos) {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
-        // Desacoplado: Checa colisões apenas 1 vez, mesmo a animação durando 0.2s
         if (estaAtacando && !danoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {

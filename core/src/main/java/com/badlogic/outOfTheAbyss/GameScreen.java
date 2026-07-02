@@ -12,6 +12,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.maps.tiled.TiledMap;
+import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
@@ -43,13 +45,14 @@ public class GameScreen implements Screen {
 
     Array<ObjetoRenderizavel> listaDeDesenho = new Array<>();
 
-    Texture mapaTexture;
+    TiledMap mapaTiled;
+    IsometricTiledMapRenderer mapRenderer;
+
     final float tile_width = 32f;
     final float tile_height = 16f;
-    float limiteMapaX = 50f;
-    float limiteMapaY = 50f;
-    float mapaOffsetX = 0;
-    float mapaOffsetY;
+    // Adaptado para 100x100 blocos conforme seu mapa no Tiled
+    float limiteMapaX = 100f;
+    float limiteMapaY = 100f;
 
     float screenX, screenY;
 
@@ -98,16 +101,15 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
-        mapaTexture = game.assets.get("mapa/mapa_simples.png", Texture.class);
-        mapaOffsetY = -limiteMapaX * (tile_height / 2f);
+        // Carrega o mapa em memória e vincula ao renderizador
+        mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
+        mapRenderer = new IsometricTiledMapRenderer(mapaTiled, batch);
 
         // INICIALIZAÇÃO DA LUZ
-        // 1. Cria o FrameBuffer com a exata resolução do nosso Viewport Virtual
         lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
         lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
-        lightBufferRegion.flip(false, true); // O OpenGL renderiza FBOs de cabeça para baixo nativamente
+        lightBufferRegion.flip(false, true);
 
-        // 2. Cria a textura do feixe de luz usando a RAM (Sem depender de arquivos PNG novos)
         lightBrush = gerarTexturaLuz(256);
 
         TextureRegion pedraRegion = new TextureRegion(game.assets.get("mapa/objetos/pedras/pedra_01.png", Texture.class));
@@ -118,7 +120,8 @@ public class GameScreen implements Screen {
         }
 
         playerController = new PlayerController();
-        Vector2 posicaoInicial = new Vector2(limiteMapaY / 2f, -limiteMapaX / 2f);
+        // Spawna exatamante no meio do mapa novo (50, -50)
+        Vector2 posicaoInicial = new Vector2(4f, -95f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
@@ -127,9 +130,6 @@ public class GameScreen implements Screen {
         }
     }
 
-    /**
-     * Gera uma textura procedural de luz suave (gradiente radial) na CPU e a envia para a GPU.
-     */
     private Texture gerarTexturaLuz(int tamanho) {
         Pixmap pixmap = new Pixmap(tamanho, tamanho, Pixmap.Format.RGBA8888);
         float raio = tamanho / 2f;
@@ -140,14 +140,13 @@ public class GameScreen implements Screen {
                 float alpha = 1f - (dist / raio);
                 if (alpha < 0f) alpha = 0f;
 
-                // Atenuação Quadrática (Deixa a borda da luz muito mais natural que uma linha reta)
                 alpha = alpha * alpha;
                 pixmap.setColor(1f, 1f, 1f, alpha);
                 pixmap.drawPixel(x, y);
             }
         }
         Texture tex = new Texture(pixmap);
-        pixmap.dispose(); // Best Practice: Sempre descartar Pixmaps nativos da RAM após enviar pra VRAM
+        pixmap.dispose();
         return tex;
     }
 
@@ -247,9 +246,13 @@ public class GameScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         viewport.apply();
+
+        // 1. O mapa deve ser desenhado antes dos objetos customizáveis
+        mapRenderer.setView(camera);
+        mapRenderer.render();
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(mapaTexture, mapaOffsetX, mapaOffsetY);
 
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
@@ -287,53 +290,32 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
-        // ----------------------------------------------------
-        // SISTEMA DE FOG E LUZ 2D (FRAMEBUFFER E BLEND)
-        // ----------------------------------------------------
-
-        // 1. Inicia a interceptação de desenho para o nosso FrameBuffer (ao invés da tela do monitor)
+        // SISTEMA DE FOG E LUZ 2D
         lightBuffer.begin();
-
-        // Limpa o Framebuffer pintando-o com a Escuridão Ambiente (Azul bem escuro e opaco)
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        // 2. Mistura Aditiva: Todas as luzes que desenharmos vão se SOMAR, tornando o pixel mais branco
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
 
-        // Define a luz do jogador
-        float raioVisao = 500f;
+        float raioVisao = 700f;
         float luzX = screenX - (raioVisao / 2f);
-        float luzY = screenY - (raioVisao / 2f) + (tile_height); // Leve offset Y para centralizar no peito do char
-
-        // Desenha o carimbo de luz. Como a cor base do Pincel é Branca, os pixels desta região ficam = 1.0 (Brancos)
+        float luzY = screenY - (raioVisao / 2f) + (tile_height);
         batch.draw(lightBrush, luzX, luzY, raioVisao, raioVisao);
-
-        // Dica: Se quiser que as pedras brilhem ou que inimigos emitam luz, basta fazer um loop desenhando o brush neles!
 
         batch.end();
         lightBuffer.end();
 
-        // 3. Hora de aplicar a camada do FrameBuffer (Luzes + Escuridão) por cima do Mundo do Jogo já desenhado
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-
-        // 4. Mistura Multiplicativa Escura
         batch.setBlendFunction(GL20.GL_DST_COLOR, GL20.GL_ZERO);
-
-        // Desenhamos a aba FBO amarrada na posição da nossa Camera para cobrir o monitor exatamente onde ele está olhando
         batch.draw(lightBufferRegion,
             camera.position.x - viewport.getWorldWidth() / 2f,
             camera.position.y - viewport.getWorldHeight() / 2f,
             viewport.getWorldWidth(), viewport.getWorldHeight());
-
-        // 5. Devolvemos a configuração da placa de vídeo ao padrão tradicional de Transparência do LibGDX
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         batch.end();
-
-        // ----------------------------------------------------
 
         if (mostrarHitboxes) {
             shapeRenderer.setProjectionMatrix(camera.combined);
@@ -432,8 +414,10 @@ public class GameScreen implements Screen {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
-        // Best Practice: O Framebuffer e sua textura dinâmica criam alocações brutas fora do GC, devemos descarta-los.
         lightBuffer.dispose();
         lightBrush.dispose();
+        // Libera os recursos instanciados pelo mapa
+        mapaTiled.dispose();
+        // O mapRenderer internamente NÃO mata o seu batch estático caso passamos via construtor (seguro e correto).
     }
 }
