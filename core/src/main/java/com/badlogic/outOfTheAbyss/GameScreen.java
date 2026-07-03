@@ -1,6 +1,7 @@
 package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -107,6 +108,11 @@ public class GameScreen implements Screen {
     private Texture pixelPreto;
     private final float VELOCIDADE_FADE = 1.0f;
 
+    Array<Vector2> cristaisInterativos = new Array<>();
+    private boolean pertoDoCristal = false;
+    private boolean mostrandoMensagemMagica = false;
+    private Texture portraitAephorul;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
@@ -184,8 +190,8 @@ public class GameScreen implements Screen {
                             float pScreenY = (worldX + worldY) * (tile_height / 2f);
 
                             ObjetoRenderizavel obj = new ObjetoRenderizavel();
+                            obj.tile = cell.getTile();
                             obj.textura = cell.getTile().getTextureRegion();
-
                             obj.drawX = pScreenX - (tile_width / 2f) + cell.getTile().getOffsetX();
                             obj.drawY = pScreenY + cell.getTile().getOffsetY();
 
@@ -210,6 +216,11 @@ public class GameScreen implements Screen {
                             if (emiteLuzAzul != null && emiteLuzAzul) {
                                 float elevacaoCristal = 10f;
                                 luzesAzuis.add(new Vector2(pScreenX, pScreenY + elevacaoCristal));
+                            }
+
+                            Boolean mostrarMensagem = cell.getTile().getProperties().get("mostrarMensagem", Boolean.class);
+                            if (mostrarMensagem != null && mostrarMensagem) {
+                                cristaisInterativos.add(new Vector2(worldX, worldY));
                             }
 
                             obj.flipX = cell.getFlipHorizontally();
@@ -250,6 +261,8 @@ public class GameScreen implements Screen {
         for (int i = 0; i < max_morcegos_no_mapa; i++) {
             gerarMorcegoAleatorio();
         }
+
+        portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
     }
 
     private Texture gerarTexturaLuz(int tamanho) {
@@ -299,6 +312,11 @@ public class GameScreen implements Screen {
         if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
         if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
 
+        // Toggle da Mensagem (Só funciona se estiver perto)
+        if (pertoDoCristal && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            mostrandoMensagemMagica = !mostrandoMensagemMagica;
+        }
+
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
@@ -307,6 +325,23 @@ public class GameScreen implements Screen {
     }
 
     private void logic(float delta) {
+        // --- SISTEMA DE INTERAÇÃO ---
+        pertoDoCristal = false;
+
+        for (Vector2 posCristal : cristaisInterativos) {
+            // Se o jogador estiver a menos de 2 blocos de distância do cristal
+            if (player.posicaoMundo.dst(posCristal) < 2.0f) {
+                pertoDoCristal = true;
+                break;
+            }
+        }
+
+        // Se o jogador se afastar, fecha a mensagem automaticamente
+        if (!pertoDoCristal) {
+            mostrandoMensagemMagica = false;
+        }
+        // -----------------------------
+
         player.atualizarLogicaAtaque(delta, morcegos);
 
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
@@ -420,10 +455,12 @@ public class GameScreen implements Screen {
         listaDeDesenho.sort(zIndexComparator);
 
         for (ObjetoRenderizavel obj : listaDeDesenho) {
+            if (obj.tile != null) {
+                obj.textura = obj.tile.getTextureRegion();
+            }
             if (obj.textura != null) {
                 batch.setColor(1f, 1f, 1f, obj.alpha);
 
-                // Checa direto a flag booleana e repassa as constantes
                 if (obj.isTransformado) {
                     batch.draw(obj.textura, obj.drawX, obj.drawY,
                         obj.originX, obj.originY,
@@ -534,20 +571,53 @@ public class GameScreen implements Screen {
             shapeRenderer.end();
         }
 
-        if (mostrarDebugInfo) {
-            uiViewport.apply();
-            batch.setProjectionMatrix(uiCamera.combined);
-            batch.begin();
+        // --- INTERFACE DE USUÁRIO (HUD) ---
+        uiViewport.apply();
+        batch.setProjectionMatrix(uiCamera.combined);
 
+        // 1. ABRE A CANETA UMA ÚNICA VEZ PARA TODA A UI
+        batch.begin();
+
+        if (pertoDoCristal && !mostrandoMensagemMagica) {
+            font.setColor(Color.YELLOW);
+            font.draw(batch, "[E] Inspecionar", uiViewport.getWorldWidth() / 2f - 80f, 200f);
+        }
+
+        if (mostrandoMensagemMagica) {
+            // Desenha o Fundo Escuro
+            batch.setColor(1f, 1f, 1f, 0.8f);
+            batch.draw(pixelPreto, 50, 50, uiViewport.getWorldWidth() - 100, 150);
+
+            // Retorna a cor para branco ANTES de desenhar o portrait e o texto
+            batch.setColor(Color.WHITE);
+
+            batch.draw(portraitAephorul, 60, 60, 320, 320);
+
+            font.setColor(Color.FIREBRICK);
+            font.draw(batch, "Obrigado por jogar nosso jogo!", 420, 180);
+
+            font.setColor(Color.WHITE);
+            font.draw(batch, "O abismo aguarda seu retorno, herói...", 420, 120);
+
+            font.draw(batch, "Desenvolvedores:", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 200);
+            font.draw(batch, "Matheus Dall olmo", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 160);
+            font.draw(batch, "Pablo Gabriel Sustisso ", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 120);
+            font.draw(batch, "Samuel Grontoski", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 80);
+        }
+
+        // 2. DEBUG INFO (Removemos o begin() e end() que causavam o erro)
+        if (mostrarDebugInfo) {
             String textoOverlay = String.format(
                 "FPS: %d\nPOS MUNDO:\nX: %.2f | Y: %.2f\nPOS TELA:\nX: %.1f | Y: %.1f",
                 Gdx.graphics.getFramesPerSecond(), player.posicaoMundo.x, player.posicaoMundo.y, screenX, screenY
             );
-
             font.setColor(Color.GREEN);
-            font.draw(batch, textoOverlay, 15, viewport_height - 15);
-            batch.end();
+            font.draw(batch, textoOverlay, 15, uiViewport.getWorldHeight() - 300);
         }
+
+        // 3. FECHA A CANETA DA UI
+        batch.end();
+
 
         // --- CORTINA DE ILUMINAÇÃO (FADE IN DO JOGO) ---
         if (transicaoAlpha > 0f) {
@@ -557,13 +627,12 @@ public class GameScreen implements Screen {
             uiViewport.apply();
             batch.setProjectionMatrix(uiCamera.combined);
 
-            // Ativa blend explicitly caso os modos anteriores tenham desativado
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
+            // Como fechamos o batch ali em cima, podemos abrir este com segurança!
             batch.begin();
             batch.setColor(1f, 1f, 1f, transicaoAlpha);
-            // Desenha esticado cobrindo a tela toda
             batch.draw(pixelPreto, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
             batch.setColor(Color.WHITE);
             batch.end();
@@ -612,5 +681,6 @@ public class GameScreen implements Screen {
         lightBrush.dispose();
         mapaTiled.dispose();
         pixelPreto.dispose();
+        portraitAephorul.dispose();
     }
 }

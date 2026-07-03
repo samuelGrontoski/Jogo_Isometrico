@@ -35,6 +35,14 @@ public class MenuInicial implements Screen {
 
     public MenuInicial(final JogoIsometrico game) {
         this.game = game;
+
+        if (!game.assets.isLoaded("background/tela-menu.png")) {
+            game.assets.load("background/tela-menu.png", Texture.class);
+            game.assets.load("botao/botao_jogar.png", Texture.class);
+            game.assets.load("botao/botao_sair.png", Texture.class);
+            game.assets.finishLoading(); // Trava a thread por milissegundos para concluir
+        }
+
         stage = new Stage(new FitViewport(640, 360));
 
         // Obtém referências das texturas já decodificadas da RAM

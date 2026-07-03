@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Objetos_Cenario" tilewidth="262" tileheight="218" tilecount="69" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Objetos_Cenario" tilewidth="262" tileheight="218" tilecount="70" columns="0">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="Objetos_Cenario/AlchemistTower_BoostGate_01_B.png" width="170" height="218"/>
@@ -213,5 +213,8 @@
  </tile>
  <tile id="68">
   <image source="Objetos_Cenario/WraithIsland_NecroLair_SkullPile_01_A.png" width="56" height="74"/>
+ </tile>
+ <tile id="70">
+  <image source="Objetos_Cenario/porta.png" width="144" height="108"/>
  </tile>
 </tileset>

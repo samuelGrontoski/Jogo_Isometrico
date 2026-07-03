@@ -1,6 +1,7 @@
 package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.maps.tiled.TiledMapTile;
 
 public class ObjetoRenderizavel {
     public TextureRegion textura;
@@ -19,4 +20,5 @@ public class ObjetoRenderizavel {
     public float scaleX = 1f, scaleY = 1f;
     public float grausRotacao = 0f;
     public boolean isTransformado = false;
+    public TiledMapTile tile;
 }

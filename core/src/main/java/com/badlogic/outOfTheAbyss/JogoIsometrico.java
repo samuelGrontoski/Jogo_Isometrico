@@ -3,12 +3,15 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
 
 public class JogoIsometrico extends Game {
     public SpriteBatch batch;
@@ -19,22 +22,37 @@ public class JogoIsometrico extends Game {
     @Override
     public void create() {
         batch = new SpriteBatch();
-        font = new BitmapFont();
         viewport = new FitViewport(640, 360);
 
-        font.setUseIntegerPositions(false);
-        font.getData().setScale(viewport.getWorldHeight() / Gdx.graphics.getHeight());
+        // --- INÍCIO DA CRIAÇÃO DA FONTE TTF ---
+
+        // 1. Aponta para o arquivo .ttf na sua pasta assets
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/GeistPixel-Regular-VariableFont_ELSH.ttf"));
+        FreeTypeFontParameter parameter = new FreeTypeFontParameter();
+
+        // 2. Parâmetros de customização da fonte
+        parameter.size = 24; // Tamanho em pixels (ajuste para ficar bonito no seu Viewport)
+        parameter.color = Color.WHITE;
+        parameter.borderWidth = 1; // Cria uma bordinha preta leve ao redor das letras para facilitar a leitura
+        parameter.borderColor = Color.BLACK;
+        parameter.minFilter = Texture.TextureFilter.Nearest;
+        parameter.magFilter = Texture.TextureFilter.Nearest; // Mantém o estilo "Pixel Art" crocante da sua fonte
+
+        // 3. O gerador desenha o mapa na RAM e cria a BitmapFont pronta para uso
+        font = generator.generateFont(parameter);
+
+        // 4. Libera a fábrica da memória RAM (OBRIGATÓRIO PARA EVITAR MEMORY LEAK)
+        generator.dispose();
+
+        // --- FIM DA CRIAÇÃO DA FONTE ---
 
         assets = new AssetManager();
         assets.setLoader(TiledMap.class, new TmxMapLoader());
 
-        // 1. Enfileira apenas os recursos da tela de Menu
         carregarAssetsMenu();
 
-        // 2. Trava a thread da aplicação milissegundos para carregar os assets do Menu instantaneamente
-        assets.finishLoading();
+        carregarAssetsJogo();
 
-        // 3. Inicia o jogo diretamente no Menu, sem passar pelo Loading
         this.setScreen(new MenuInicial(this));
     }
 
