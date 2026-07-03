@@ -133,7 +133,7 @@ public class GameScreen implements Screen {
 
         musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
         musicaFundo.setLooping(true);
-        musicaFundo.setVolume(0.7f);
+        musicaFundo.setVolume(1.2f);
         musicaFundo.play();
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
