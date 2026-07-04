@@ -3,6 +3,8 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -60,6 +62,8 @@ public class JogoIsometrico extends Game {
         assets.load("background/tela-menu.png", Texture.class);
         assets.load("botao/botao_jogar.png", Texture.class);
         assets.load("botao/botao_sair.png", Texture.class);
+        assets.load("sons/Fantasy UI - Twilight (4).wav", Sound.class);
+        assets.load("sons/The Otherside.wav", Music.class);
     }
 
     // Chamado pelo MenuInicial quando o botão de Jogar for clicado
@@ -70,6 +74,7 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/personagem_idle_sw.png", Texture.class);
         assets.load("personagem/personagem_run_se.png", Texture.class);
         assets.load("personagem/personagem_run_sw.png", Texture.class);
+        assets.load("sons/Go Down.wav", Music.class);
     }
 
     @Override

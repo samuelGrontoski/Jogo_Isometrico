@@ -3,6 +3,7 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -113,6 +114,8 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
+    private Music musicaFundo;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
@@ -127,6 +130,11 @@ public class GameScreen implements Screen {
 
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
+
+        musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
+        musicaFundo.setLooping(true);
+        musicaFundo.setVolume(1.2f);
+        musicaFundo.play();
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
@@ -299,6 +307,7 @@ public class GameScreen implements Screen {
 
     private boolean input(float delta) {
         if (playerController.escapePressed) {
+            musicaFundo.stop();
             game.setScreen(new MenuInicial(game));
             dispose();
             return false;
@@ -687,5 +696,6 @@ public class GameScreen implements Screen {
         mapaTiled.dispose();
         pixelPreto.dispose();
         portraitAephorul.dispose();
+        musicaFundo.stop();
     }
 }
