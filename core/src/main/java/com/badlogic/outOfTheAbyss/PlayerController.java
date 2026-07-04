@@ -22,6 +22,11 @@ public class PlayerController implements InputProcessor {
     private boolean debugInfoToggle = false;
     private boolean hitboxesToggle = false;
 
+    // Ataque pesado (min 1s de pressionamento)
+    private boolean attackPesadoTriggered = false;
+    private long tempoInicioCliqueDireito = 0L;
+    public boolean rightMouseHeld = false;
+
     @Override
     public boolean keyDown(int keycode) {
         switch (keycode) {
@@ -78,6 +83,30 @@ public class PlayerController implements InputProcessor {
             attackTriggered = true;
             return true;
         }
+        // Verificação para o ataque pesado
+        if (button == Input.Buttons.RIGHT) {
+            rightMouseHeld = true;
+            tempoInicioCliqueDireito = com.badlogic.gdx.utils.TimeUtils.millis();
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        // Interrompe a contagem quando o botão direito é solto
+        if (button == Input.Buttons.RIGHT) {
+            if (rightMouseHeld) {
+                rightMouseHeld = false;
+                // Verifica se a diferença de tempo desde o clique é de pelo menos 1000ms (1 segundo)
+                if (com.badlogic.gdx.utils.TimeUtils.timeSinceMillis(tempoInicioCliqueDireito) >= 1000) {
+                    attackPesadoTriggered = true;
+                }
+            }
+            return true;
+        }
+
         return false;
     }
 
@@ -93,6 +122,14 @@ public class PlayerController implements InputProcessor {
     public boolean consumeAttack() {
         if (attackTriggered) {
             attackTriggered = false;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean consumeAttackPesado() {
+        if (attackPesadoTriggered) {
+            attackPesadoTriggered = false;
             return true;
         }
         return false;
@@ -125,11 +162,6 @@ public class PlayerController implements InputProcessor {
     @Override
     public boolean keyTyped(char character) {
         // Retorne false se o evento não foi consumido aqui
-        return false;
-    }
-
-    @Override
-    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
         return false;
     }
 
