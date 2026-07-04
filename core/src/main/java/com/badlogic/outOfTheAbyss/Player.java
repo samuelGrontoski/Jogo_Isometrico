@@ -28,10 +28,9 @@ public class Player {
     public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
-    public float tempoSegurandoBotao = 0f;
-    public float attackPesadoTimer = 0.8f;
+    public float attackPesadoTimer = 2.0f;
     public final float duracaoAtaquePesado = 0.3f;
-    public final float tempoRecargaAtaquePesado = 0.8f;
+    public final float tempoRecargaAtaquePesado = 2.0f;
 
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
