@@ -378,7 +378,30 @@ public class GameScreen implements Screen {
         player.atualizarLogicaAtaque(delta, morcegos);
 
         if (boss != null) {
-            boss.update(delta, player.posicaoMundo, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+            boss.update(delta, player.posicaoMundo, player.hitbox, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+
+            // --- CHECAGEM DE COLISÃO: TEIAS VS PLAYER ---
+            for (TeiaProjetil teia : boss.teiasAtivas) {
+                if (teia.hitbox.overlaps(player.hitbox)) {
+
+                    if (teia.voando) {
+                        // 1. O projetil bateu no player enquanto voava!
+                        // Aqui você chama o método de dano do seu player. Exemplo:
+                        // player.tomarDano(15);
+
+                        // Força a teia a cair no chão imediatamente onde acertou o player
+                        teia.voando = false;
+                        teia.stateTime = 0f;
+                        teia.posicaoMundo.set(player.posicaoMundo);
+                        teia.hitbox.setPosition(teia.posicaoMundo.x, teia.posicaoMundo.y);
+                    }
+                    else {
+                        // 2. A teia já está no chão e o player pisou nela (Armadilha)
+                        // Aqui você pode aplicar um status de lentidão. Exemplo:
+                        // player.aplicarLentidao(delta);
+                    }
+                }
+            }
         }
 
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
@@ -473,6 +496,26 @@ public class GameScreen implements Screen {
                 bossRender.alpha = 1f;
                 bossRender.isElementoMapa = false;
                 listaDeDesenho.add(bossRender);
+            }
+        }
+
+        if (boss != null) {
+            for (TeiaProjetil teia : boss.teiasAtivas) {
+                TextureRegion frameTeia = teia.getCurrentFrame();
+                if (frameTeia != null) {
+                    float tScreenX = (teia.posicaoMundo.x - teia.posicaoMundo.y) * (tile_width / 2f);
+                    float tScreenY = (teia.posicaoMundo.x + teia.posicaoMundo.y) * (tile_height / 2f);
+
+                    ObjetoRenderizavel teiaRender = new ObjetoRenderizavel();
+                    teiaRender.textura = frameTeia;
+                    teiaRender.drawX = tScreenX - (frameTeia.getRegionWidth() / 2f);
+                    teiaRender.drawY = tScreenY - 40f; // Ajuste fino da altura isométrica
+
+                    teiaRender.sortY = tScreenY;
+                    teiaRender.alpha = 1f;
+                    teiaRender.isElementoMapa = false;
+                    listaDeDesenho.add(teiaRender);
+                }
             }
         }
 
@@ -596,6 +639,17 @@ public class GameScreen implements Screen {
                 desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
             }
 
+            shapeRenderer.setColor(Color.YELLOW);
+            if (boss != null) {
+                desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
+
+                // --- DESENHA A HITBOX DAS TEIAS ---
+                shapeRenderer.setColor(Color.CYAN); // Cor ciano para as teias
+                for (TeiaProjetil teia : boss.teiasAtivas) {
+                    desenharRetanguloIsometrico(teia.hitbox, shapeRenderer);
+                }
+            }
+
             shapeRenderer.setColor(Color.GREEN);
             desenharRetanguloIsometrico(player.hitbox, shapeRenderer);
 
@@ -630,6 +684,23 @@ public class GameScreen implements Screen {
                 }
             }
             shapeRenderer.end();
+        }
+
+        if (boss != null && boss.isAtacando()) {
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+            shapeRenderer.setProjectionMatrix(camera.combined);
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(1f, 0f, 0f, 0.4f);
+
+            for (Vector2 tile : boss.getTilesAtaqueTelegraph()) {
+                Rectangle tileRect = new Rectangle(tile.x, tile.y, 1f, 1f);
+                desenharTileIsometricoPreenchido(tileRect, shapeRenderer);
+            }
+            shapeRenderer.end();
+
+            Gdx.gl.glDisable(GL20.GL_BLEND);
         }
 
         // --- INTERFACE DE USUÁRIO (HUD) ---
@@ -753,6 +824,21 @@ public class GameScreen implements Screen {
         sr.line(sx2, sy2, sx3, sy3);
         sr.line(sx3, sy3, sx4, sy4);
         sr.line(sx4, sy4, sx1, sy1);
+    }
+
+    private void desenharTileIsometricoPreenchido(Rectangle rect, ShapeRenderer sr) {
+        float x1 = rect.x, y1 = rect.y;
+        float x2 = rect.x + rect.width, y2 = rect.y;
+        float x3 = rect.x + rect.width, y3 = rect.y + rect.height;
+        float x4 = rect.x, y4 = rect.y + rect.height;
+
+        float sx1 = (x1 - y1) * (tile_width / 2f); float sy1 = (x1 + y1) * (tile_height / 2f);
+        float sx2 = (x2 - y2) * (tile_width / 2f); float sy2 = (x2 + y2) * (tile_height / 2f);
+        float sx3 = (x3 - y3) * (tile_width / 2f); float sy3 = (x3 + y3) * (tile_height / 2f);
+        float sx4 = (x4 - y4) * (tile_width / 2f); float sy4 = (x4 + y4) * (tile_height / 2f);
+
+        sr.triangle(sx1, sy1, sx2, sy2, sx3, sy3);
+        sr.triangle(sx1, sy1, sx3, sy3, sx4, sy4);
     }
 
     private void desenharSlotHabilidade(Texture icone, Texture frame, float x, float y, float size, float porcentagemPronto) {

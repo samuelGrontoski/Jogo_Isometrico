@@ -13,7 +13,7 @@ import com.badlogic.gdx.utils.Array;
 public class Boss {
     public Vector2 position;
     public float speed = 7f;
-    public float aggroRange = 30f;
+    public float aggroRange = 25f;
     public float attackRange = 5f;
     public String currentState = "IDLE";
 
@@ -24,6 +24,8 @@ public class Boss {
     private Animation<TextureRegion> idleSWAnimation;
     private Animation<TextureRegion> walkSEAnimation;
     private Animation<TextureRegion> walkSWAnimation;
+    private Animation<TextureRegion> attackSEAnimation;
+    private Animation<TextureRegion> attackSWAnimation;
     private float stateTime;
     private String direcaoAtual = "SE";
 
@@ -39,6 +41,36 @@ public class Boss {
     private float timerTrocaDirecao = 0f;
     private final float cooldownTrocaDirecao = 0.15f; // evita a sprite "tremer" de direção
 
+    // --- SISTEMA DE ATAQUE ---
+    private float attackStateTime = 0f;
+    private boolean danoAplicado = false;
+    private boolean precisaReiniciarAtaque = false;
+    // Fração da duração da animação em que o "golpe" realmente acontece
+    // (a hitbox de dano só fica ativa perto desse ponto). Ajuste conforme o
+    // frame de impacto real da sua sprite sheet.
+    private final float PROGRESSO_IMPACTO_INICIO = 0.55f;
+    private final float PROGRESSO_IMPACTO_FIM = 0.75f;
+
+    private final Array<Vector2> tilesAtaqueTelegraph = new Array<>();
+    private final Vector2 direcaoVetorAtaque = new Vector2(1, 0);
+    private final Vector2 alvoAtaqueTravar = new Vector2();
+    private float attackCooldownTimer = 0f;
+    public float attackCooldown = 0.5f;
+
+    // Ataque de Teia
+    public float rangedAttackRange = 12f; // Distância máxima para atirar a teia
+    private float timerCooldownRanged = 0f;
+    private final float COOLDOWN_RANGED = 3.0f; // Demora mais pra atirar teia de novo
+
+    private Animation<TextureRegion> attack2SEAnimation;
+    private Animation<TextureRegion> attack2SWAnimation;
+
+    private Texture sheetProjetilSE;
+    private Texture sheetProjetilSW;
+
+    public Array<TeiaProjetil> teiasAtivas = new Array<>();
+    private boolean projetilDisparado = false; // Garante que só atire 1 vez por animação
+
     private static final float TILE_WIDTH = 32f;
     private static final float TILE_HEIGHT = 16f;
 
@@ -48,11 +80,10 @@ public class Boss {
         this.hitboxAtaque = new Rectangle();
         stateTime = 0f;
         carregarAnimacoes(assets);
-
     }
 
     private void carregarAnimacoes(AssetManager assets) {
-        Texture idleSESheet = assets.get("boss/Idle/Idle_SE.png", Texture.class); // ou Idle_SE.png se você renomeou
+        Texture idleSESheet = assets.get("boss/Idle/Idle_SE.png", Texture.class);
         idleSEAnimation = criarAnimacao(idleSESheet, 4, 0.15f, Animation.PlayMode.LOOP);
 
         Texture idleSWSheet = assets.get("boss/Idle/Idle_SW.png", Texture.class);
@@ -63,6 +94,24 @@ public class Boss {
 
         Texture walkSWSheet = assets.get("boss/Walk/Walk_SW.png", Texture.class);
         walkSWAnimation = criarAnimacao(walkSWSheet, 8, 0.15f, Animation.PlayMode.LOOP);
+
+        // Ajuste "7" para o número real de frames do seu sheet de ataque
+        Texture attackSESheet = assets.get("boss/Attack1/Attack1_SE.png", Texture.class);
+        attackSEAnimation = criarAnimacao(attackSESheet, 7, 0.12f, Animation.PlayMode.NORMAL);
+
+        Texture attackSWSheet = assets.get("boss/Attack1/Attack1_SW.png", Texture.class);
+        attackSWAnimation = criarAnimacao(attackSWSheet, 7, 0.12f, Animation.PlayMode.NORMAL);
+
+        // Carrega o Ataque 2 (ajuste o '7' para a quantidade certa de frames da sua imagem)
+        Texture attack2SESheet = assets.get("boss/Attack2/Attack2_SE.png", Texture.class);
+        attack2SEAnimation = criarAnimacao(attack2SESheet, 8, 0.15f, Animation.PlayMode.NORMAL);
+
+        Texture attack2SWSheet = assets.get("boss/Attack2/Attack2_SW.png", Texture.class);
+        attack2SWAnimation = criarAnimacao(attack2SWSheet, 8, 0.15f, Animation.PlayMode.NORMAL);
+
+        // Carrega os projéteis (você precisa garantir que esses caminhos estejam certos)
+        sheetProjetilSE = assets.get("boss/Proyectile/Proyectile_SE.png", Texture.class);
+        sheetProjetilSW = assets.get("boss/Proyectile/Proyectile_SW.png", Texture.class);
     }
 
     private Animation<TextureRegion> criarAnimacao(Texture sheet, int quantidadeFrames, float duracaoFrame, Animation.PlayMode playMode) {
@@ -81,67 +130,108 @@ public class Boss {
         return animacao;
     }
 
-    public void update(float delta, Vector2 playerPosition, Array<Rectangle> hitboxesMapa,
-                       int larguraMapa, int alturaMapa) {
+    public void update(float delta, Vector2 playerPosition, Rectangle playerHitbox, Array<Rectangle> hitboxesMapa, int larguraMapa, int alturaMapa) {
         stateTime += delta;
         atualizarHitbox();
 
+        // 1. Reduz os tempos de cooldown
+        if (attackCooldownTimer > 0f) {
+            attackCooldownTimer -= delta;
+        }
+        if (timerCooldownRanged > 0f) {
+            timerCooldownRanged -= delta;
+        }
+
         float distance = position.dst(playerPosition);
         String estadoAnterior = currentState;
-
         float margem = 1.5f;
 
+        // --- MÁQUINA DE ESTADOS ---
         if (currentState.equals("ATTACK")) {
-            if (distance > attackRange + margem) {
+            // Se a animação do ataque de perto terminou
+            if (animacaoAtaqueAtual().isAnimationFinished(attackStateTime)) {
+                attackCooldownTimer = attackCooldown;
+                precisaReiniciarAtaque = false;
                 currentState = distance <= aggroRange ? "CHASE" : "IDLE";
             }
-        } else if (currentState.equals("CHASE")) {
-            if (distance <= attackRange) {
-                currentState = "ATTACK";
-            } else if (distance > aggroRange + margem) {
+        }
+        else if (currentState.equals("ATTACK2")) {
+            // Se a animação do ataque de longe (teia) terminou
+            if (animacaoAtaque2Atual().isAnimationFinished(attackStateTime)) {
+                timerCooldownRanged = COOLDOWN_RANGED; // Inicia o cooldown da teia!
+                currentState = distance <= aggroRange ? "CHASE" : "IDLE";
+            }
+        }
+        else if (currentState.equals("CHASE")) {
+            if (distance <= attackRange && attackCooldownTimer <= 0f) {
+                currentState = "ATTACK"; // Player está colado, ataca de perto
+            }
+            else if (distance > attackRange && distance <= rangedAttackRange && timerCooldownRanged <= 0f) {
+                currentState = "ATTACK2"; // Player está longe, mas no alcance da teia
+            }
+            else if (distance > aggroRange + margem) {
                 currentState = "IDLE";
             }
-        } else {
-            if (distance <= attackRange) {
+        }
+        else { // IDLE
+            if (distance <= attackRange && attackCooldownTimer <= 0f) {
                 currentState = "ATTACK";
-            } else if (distance <= aggroRange) {
+            }
+            else if (distance > attackRange && distance <= rangedAttackRange && timerCooldownRanged <= 0f) {
+                currentState = "ATTACK2";
+            }
+            else if (distance <= aggroRange) {
                 currentState = "CHASE";
             }
         }
 
+        // --- EXECUTA A AÇÃO DO ESTADO ATUAL ---
         if (currentState.equals("ATTACK")) {
-            atacar();
-        } else if (currentState.equals("CHASE")) {
-            perseguir(delta, playerPosition, hitboxesMapa, larguraMapa, alturaMapa);
+            atacar(delta, estadoAnterior, playerPosition);
+        }
+        else if (currentState.equals("ATTACK2")) {
+            atacarLonge(delta, estadoAnterior, playerPosition); // Chama a lógica de atirar a teia
+        }
+        else if (currentState.equals("CHASE")) {
+            perseguir(delta, playerPosition, playerHitbox, hitboxesMapa, larguraMapa, alturaMapa);
         }
 
         if (!currentState.equals(estadoAnterior)) {
             stateTime = 0f;
         }
+
+        // --- ATUALIZA AS TEIAS NO MUNDO ---
+        // Fazemos um for de trás pra frente (i--) para poder remover as teias antigas sem bugar a lista
+        for (int i = teiasAtivas.size - 1; i >= 0; i--) {
+            TeiaProjetil teia = teiasAtivas.get(i);
+            teia.update(delta);
+
+            // Se a teia expirou (sumiu do chão), remove da lista
+            if (teia.finalizada) {
+                teiasAtivas.removeIndex(i);
+            }
+        }
     }
 
-    private void perseguir(float delta, Vector2 playerPosition, Array<Rectangle> hitboxesMapa,
+    private void perseguir(float delta, Vector2 playerPosition, Rectangle playerHitbox, Array<Rectangle> hitboxesMapa,
                            int larguraMapa, int alturaMapa) {
 
         timerTrocaModo -= delta;
 
         Vector2 direcaoDireta = new Vector2(playerPosition).sub(position).nor();
 
-        // Testa um passo um pouco maior que o real, só pra decidir o MODO (direto vs pathfinding),
-        // criando uma margem de segurança que evita alternância por 1 pixel de diferença.
         float margemDecisao = 0.3f;
         Rectangle testeDecisaoX = calcularHitboxEm(position.x + direcaoDireta.x * margemDecisao, position.y);
         Rectangle testeDecisaoY = calcularHitboxEm(position.x, position.y + direcaoDireta.y * margemDecisao);
 
-        boolean direçãoDiretaViavel = !colideComMapa(testeDecisaoX, hitboxesMapa) || !colideComMapa(testeDecisaoY, hitboxesMapa);
+        boolean direcaoDiretaViavel = !colideComMapa(testeDecisaoX, hitboxesMapa) || !colideComMapa(testeDecisaoY, hitboxesMapa);
 
-        // Só permite trocar de modo (direto <-> pathfinding) se o cooldown já passou
         if (timerTrocaModo <= 0f) {
-            boolean novoModoPathfinding = !direçãoDiretaViavel;
+            boolean novoModoPathfinding = !direcaoDiretaViavel;
             if (novoModoPathfinding != usandoPathfinding) {
                 usandoPathfinding = novoModoPathfinding;
                 timerTrocaModo = cooldownTrocaModo;
-                if (!usandoPathfinding) caminhoAtual = null; // limpa rota antiga ao voltar pro modo direto
+                if (!usandoPathfinding) caminhoAtual = null;
             }
         }
 
@@ -152,8 +242,9 @@ public class Boss {
             Rectangle testeX = calcularHitboxEm(position.x + deslocamentoX, position.y);
             Rectangle testeY = calcularHitboxEm(position.x, position.y + deslocamentoY);
 
-            boolean bloqueadoX = colideComMapa(testeX, hitboxesMapa);
-            boolean bloqueadoY = colideComMapa(testeY, hitboxesMapa);
+            // ADICIONE A CHECAGEM COM O PLAYER AQUI:
+            boolean bloqueadoX = colideComMapa(testeX, hitboxesMapa) || testeX.overlaps(playerHitbox);
+            boolean bloqueadoY = colideComMapa(testeY, hitboxesMapa) || testeY.overlaps(playerHitbox);
 
             if (!bloqueadoX) position.x += deslocamentoX;
             if (!bloqueadoY) position.y += deslocamentoY;
@@ -163,7 +254,6 @@ public class Boss {
             return;
         }
 
-        // --- modo pathfinding ---
         timerRecalculoCaminho -= delta;
         if (caminhoAtual == null || timerRecalculoCaminho <= 0f) {
             caminhoAtual = Pathfinder.encontrarCaminho(position, playerPosition, hitboxesMapa, larguraMapa, alturaMapa, 2);
@@ -187,17 +277,132 @@ public class Boss {
         float dy = direcaoRota.y * speed * delta;
 
         Rectangle t1 = calcularHitboxEm(position.x + dx, position.y);
-        if (!colideComMapa(t1, hitboxesMapa)) position.x += dx;
+        // ADICIONE A CHECAGEM COM O PLAYER AQUI TAMBÉM:
+        if (!colideComMapa(t1, hitboxesMapa) && !t1.overlaps(playerHitbox)) position.x += dx;
 
         Rectangle t2 = calcularHitboxEm(position.x, position.y + dy);
-        if (!colideComMapa(t2, hitboxesMapa)) position.y += dy;
+        // E AQUI:
+        if (!colideComMapa(t2, hitboxesMapa) && !t2.overlaps(playerHitbox)) position.y += dy;
 
         atualizarDirecaoVisual(direcaoRota);
         atualizarHitbox();
     }
 
+    // --- LÓGICA DE ATAQUE ---
+
+    private void atacar(float delta, String estadoAnterior, Vector2 playerPosition) {
+        boolean primeiraVezEntrandoEmAttack = !estadoAnterior.equals("ATTACK");
+
+        if (primeiraVezEntrandoEmAttack || precisaReiniciarAtaque) {
+            precisaReiniciarAtaque = false;
+            attackStateTime = 0f;
+            danoAplicado = false;
+
+            // Encara o player
+            Vector2 direcaoParaPlayer = new Vector2(playerPosition).sub(position);
+            direcaoAtual = direcaoParaPlayer.x >= 0 ? "SE" : "SW";
+
+            // 1. TRAVA A POSIÇÃO DO PLAYER NESTE MOMENTO
+            alvoAtaqueTravar.set(playerPosition);
+
+            // 2. Calcula a área de dano em cima dessa posição travada
+            calcularTilesTelegraph();
+        }
+
+        attackStateTime += delta;
+
+        Animation<TextureRegion> anim = animacaoAtaqueAtual();
+        float progresso = anim.getAnimationDuration() > 0f
+            ? Math.min(attackStateTime / anim.getAnimationDuration(), 1f)
+            : 1f;
+
+        boolean dentroDaJanelaDeImpacto = progresso >= PROGRESSO_IMPACTO_INICIO && progresso <= PROGRESSO_IMPACTO_FIM;
+
+        if (dentroDaJanelaDeImpacto) {
+            atualizarHitboxAtaque();
+        } else {
+            hitboxAtaque.set(0, 0, 0, 0);
+        }
+
+        if (dentroDaJanelaDeImpacto && !danoAplicado) {
+            danoAplicado = true;
+        }
+    }
+
+    private Animation<TextureRegion> animacaoAtaqueAtual() {
+        return direcaoAtual.equals("SE") ? attackSEAnimation : attackSWAnimation;
+    }
+
+    /**
+     * Calcula os tiles da área de ataque considerando as 8 direções possíveis
+     * (N, NE, E, SE, S, SW, W, NW), sempre alinhados ao grid do mapa.
+     *
+     * A direção real até o player (direcaoVetorAtaque) é "arredondada" pro
+     * múltiplo de 45° mais próximo, virando um vetor com componentes exatas
+     * -1, 0 ou 1. Isso garante que:
+     * - Direções diagonais (NE/NW/SE/SW) gerem um quadrado 3x3 deslocado
+     *   nos dois eixos, sem rotação (sem tiles "dispersos").
+     * - Direções retas (N/S/L/O) gerem um bloco 3x3 esticado no eixo
+     *   dominante, com a largura no outro eixo (que já é naturalmente
+     *   alinhado ao grid, sem precisar de rotação).
+     */
+    private void calcularTilesTelegraph() {
+        tilesAtaqueTelegraph.clear();
+
+        // Pega o tile central onde o player estava no início do ataque
+        int centroX = MathUtils.floor(alvoAtaqueTravar.x);
+        int centroY = MathUtils.floor(alvoAtaqueTravar.y);
+
+        // Cria uma área 3x3 (quadrado) centralizada no player
+        // Se quiser um ataque maior ou menor, basta alterar os limites do loop (-1 até 1)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                tilesAtaqueTelegraph.add(new Vector2(centroX + dx, centroY + dy));
+            }
+        }
+    }
+
+    private void atualizarHitboxAtaque() {
+        if (tilesAtaqueTelegraph.size == 0) {
+            hitboxAtaque.set(0, 0, 0, 0);
+            return;
+        }
+
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
+
+        for (Vector2 tile : tilesAtaqueTelegraph) {
+            minX = Math.min(minX, tile.x);
+            minY = Math.min(minY, tile.y);
+            maxX = Math.max(maxX, tile.x + 1f);
+            maxY = Math.max(maxY, tile.y + 1f);
+        }
+
+        hitboxAtaque.set(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    /** true enquanto a animação de ataque estiver tocando (pra desenhar o telegraph). */
+    public boolean isAtacando() {
+        return currentState.equals("ATTACK");
+    }
+
+    /** true só durante a janela de impacto real (hitbox de dano ativa). */
+    public boolean isGolpeAtivo() {
+        if (!currentState.equals("ATTACK")) return false;
+        Animation<TextureRegion> anim = animacaoAtaqueAtual();
+        float progresso = anim.getAnimationDuration() > 0f
+            ? Math.min(attackStateTime / anim.getAnimationDuration(), 1f)
+            : 1f;
+        return progresso >= PROGRESSO_IMPACTO_INICIO && progresso <= PROGRESSO_IMPACTO_FIM;
+    }
+
+    /** Tiles (em coordenadas de mundo) que devem ser destacados em vermelho durante o telegraph. */
+    public Array<Vector2> getTilesAtaqueTelegraph() {
+        return tilesAtaqueTelegraph;
+    }
+
     private void atualizarDirecaoVisual(Vector2 direcao) {
-        timerTrocaDirecao -= Gdx.graphics.getDeltaTime(); // ou passe "delta" como parâmetro se preferir
+        timerTrocaDirecao -= Gdx.graphics.getDeltaTime();
 
         String novaDirecao = direcao.x >= 0 ? "SE" : "SW";
         if (timerTrocaDirecao <= 0f && !novaDirecao.equals(direcaoAtual)) {
@@ -216,15 +421,11 @@ public class Boss {
     }
 
     private Rectangle calcularHitboxEm(float x, float y) {
-        float offsetX = -2f; // use os mesmos valores que você já calibrou
+        float offsetX = -2f;
         float offsetY = -2f;
         float largura = 4.5f;
         float altura = 4.5f;
         return new Rectangle(x + offsetX, y + offsetY, largura, altura);
-    }
-
-    private void atacar() {
-        // Lógica de ataque
     }
 
     public TextureRegion getCurrentFrame() {
@@ -236,8 +437,13 @@ public class Boss {
 
             case "ATTACK":
                 return direcaoAtual.equals("SE")
-                    ? idleSEAnimation.getKeyFrame(stateTime)
-                    : idleSWAnimation.getKeyFrame(stateTime);
+                    ? attackSEAnimation.getKeyFrame(attackStateTime)
+                    : attackSWAnimation.getKeyFrame(attackStateTime);
+
+            case "ATTACK2": // ADICIONE ESTE CASE
+                return direcaoAtual.equals("SE")
+                    ? attack2SEAnimation.getKeyFrame(attackStateTime)
+                    : attack2SWAnimation.getKeyFrame(attackStateTime);
 
             case "IDLE":
             default:
@@ -258,5 +464,38 @@ public class Boss {
     private void atualizarHitbox() {
         Rectangle r = calcularHitboxEm(position.x, position.y);
         hitbox.set(r.x, r.y, r.width, r.height);
+    }
+
+    private Animation<TextureRegion> animacaoAtaque2Atual() {
+        return direcaoAtual.equals("SE") ? attack2SEAnimation : attack2SWAnimation;
+    }
+
+    private void atacarLonge(float delta, String estadoAnterior, Vector2 playerPosition) {
+        boolean primeiraVez = !estadoAnterior.equals("ATTACK2");
+
+        if (primeiraVez) {
+            attackStateTime = 0f;
+            projetilDisparado = false;
+
+            // Encara o player
+            Vector2 direcaoParaPlayer = new Vector2(playerPosition).sub(position);
+            direcaoAtual = direcaoParaPlayer.x >= 0 ? "SE" : "SW";
+            alvoAtaqueTravar.set(playerPosition); // Trava a mira!
+        }
+
+        attackStateTime += delta;
+        Animation<TextureRegion> anim = animacaoAtaque2Atual();
+        float progresso = anim.getAnimationDuration() > 0f ? Math.min(attackStateTime / anim.getAnimationDuration(), 1f) : 1f;
+
+        // Dispara a teia por volta da metade da animação (ajuste esse 0.5f conforme o visual)
+        if (progresso >= 0.5f && !projetilDisparado) {
+            Texture sheetCerta = direcaoAtual.equals("SE") ? sheetProjetilSE : sheetProjetilSW;
+
+            // Cria a teia saindo da posição do boss e indo até a mira travada
+            TeiaProjetil novaTeia = new TeiaProjetil(this.position, alvoAtaqueTravar, direcaoAtual, sheetCerta);
+            teiasAtivas.add(novaTeia);
+
+            projetilDisparado = true;
+        }
     }
 }
