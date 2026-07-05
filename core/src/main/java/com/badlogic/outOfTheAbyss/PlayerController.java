@@ -12,10 +12,11 @@ public class PlayerController implements InputProcessor {
     public boolean escapePressed;
 
     // Triggers (Eventos de disparo único)
-    private boolean dashTriggered;
+    private boolean rollTriggered;
     private boolean attackTriggered;
     private boolean fullscreenTriggered;
     private boolean attackPesadoTriggered = false;
+    private boolean healTriggered = false;
 
     // Estados Isolados e Combos (ex: Segurar F3 e pressionar B)
     private boolean f3Held = false;
@@ -34,8 +35,9 @@ public class PlayerController implements InputProcessor {
             case Input.Keys.SHIFT_LEFT: shiftPressed = true; break;
             case Input.Keys.CONTROL_LEFT: ctrlPressed = true; break;
             case Input.Keys.ESCAPE: escapePressed = true; break;
-            case Input.Keys.SPACE: dashTriggered = true; break;
+            case Input.Keys.SPACE: rollTriggered = true; break;
             case Input.Keys.F11: fullscreenTriggered = true; break;
+            case Input.Keys.NUM_1: healTriggered = true; break;
 
             // Lógica de atalhos de depuração
             case Input.Keys.F3:
@@ -46,7 +48,7 @@ public class PlayerController implements InputProcessor {
             case Input.Keys.B:
                 if (f3Held) {
                     hitboxesToggle = true;
-                    f3ActionUsed = true; // Impede que soltar a tecla dispare a interface normal do F3
+                    f3ActionUsed = true;
                 }
                 break;
         }
@@ -95,9 +97,9 @@ public class PlayerController implements InputProcessor {
     }
 
     // --- CONSUMO DE GATILHOS (Devem ser lidos pelas lógicas via query) ---
-    public boolean consumeDash() {
-        if (dashTriggered) {
-            dashTriggered = false;
+    public boolean consumeRoll() {
+        if (rollTriggered) {
+            rollTriggered = false;
             return true;
         }
         return false;
@@ -114,6 +116,14 @@ public class PlayerController implements InputProcessor {
     public boolean consumeAttackPesado() {
         if (attackPesadoTriggered) {
             attackPesadoTriggered = false;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean consumeHeal() {
+        if (healTriggered) {
+            healTriggered = false;
             return true;
         }
         return false;
@@ -144,10 +154,7 @@ public class PlayerController implements InputProcessor {
     }
 
     @Override
-    public boolean keyTyped(char character) {
-        // Retorne false se o evento não foi consumido aqui
-        return false;
-    }
+    public boolean keyTyped(char character) { return false; }
 
     @Override
     public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
