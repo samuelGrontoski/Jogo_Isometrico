@@ -284,10 +284,10 @@ public class GameScreen implements Screen {
         portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
 
         // HUD Abilidades
-        uiIconAtaqueLeve = game.assets.get("abilidades/ataque_leve_icon.png", Texture.class);
-        uiIconAtaquePesado = game.assets.get("abilidades/ataque_pesado_icon.png", Texture.class);
-        uiIconDash = game.assets.get("abilidades/dash_icon.png", Texture.class);
-        uiFrame = game.assets.get("abilidades/frame_icon.png", Texture.class);
+        uiIconAtaqueLeve = game.assets.get("skills/ataque_leve_icon.png", Texture.class);
+        uiIconAtaquePesado = game.assets.get("skills/ataque_pesado_icon.png", Texture.class);
+        uiIconDash = game.assets.get("skills/dash_icon.png", Texture.class);
+        uiFrame = game.assets.get("skills/frame_icon.png", Texture.class);
 
         // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -708,11 +708,11 @@ public class GameScreen implements Screen {
         // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
         float slotSize = 48f;
         float espacamento = 10f;
-        float margemDireita = 20f;
+        float margemDireita = 60f;
         float margemInferior = 20f;
 
         // Calcula posições X da direita para a esquerda
-        float xDash = 640f - margemDireita - slotSize;
+        float xDash = uiViewport.getWorldWidth() - margemDireita - slotSize;
         float xPesado = xDash - slotSize - espacamento;
         float xLeve = xPesado - slotSize - espacamento;
         float uiY = margemInferior;
