@@ -3,6 +3,7 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -62,6 +63,7 @@ public class GameScreen implements Screen {
 
     TiledMap mapaTiled;
     IsometricTiledMapRenderer mapRenderer;
+    TiledMapTileLayer limitesLayer;
 
     Array<Rectangle> hitboxesMapa = new Array<>();
 
@@ -113,6 +115,10 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
+    private Music musicaFundo;
+
+    Boss boss;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
@@ -127,6 +133,11 @@ public class GameScreen implements Screen {
 
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
+
+        musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
+        musicaFundo.setLooping(true);
+        musicaFundo.setVolume(1.2f);
+        musicaFundo.play();
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
@@ -145,7 +156,7 @@ public class GameScreen implements Screen {
         mapRenderer = new IsometricTiledMapRenderer(mapaTiled, batch);
 
         // 2. BUSCA DE COLISÕES: Modificado para ler estritamente os retângulos da camada de borda.
-        TiledMapTileLayer limitesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("limites_mapa");
+        limitesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("limites_mapa");
 
         if (limitesLayer != null) {
             for (int col = 0; col < limitesLayer.getWidth(); col++) {
@@ -254,8 +265,11 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(23f, -80f);
+        Vector2 posicaoInicial = new Vector2(75f, -20f);
         player = new Player(posicaoInicial, game.assets, playerController);
+
+        Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
+        boss = new Boss(posicaoInicialBoss, game.assets);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
         for (int i = 0; i < max_morcegos_no_mapa; i++) {
@@ -299,6 +313,7 @@ public class GameScreen implements Screen {
 
     private boolean input(float delta) {
         if (playerController.escapePressed) {
+            musicaFundo.stop();
             game.setScreen(new MenuInicial(game));
             dispose();
             return false;
@@ -343,6 +358,10 @@ public class GameScreen implements Screen {
         // -----------------------------
 
         player.atualizarLogicaAtaque(delta, morcegos);
+
+        if (boss != null) {
+            boss.update(delta, player.posicaoMundo, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+        }
 
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
@@ -423,6 +442,20 @@ public class GameScreen implements Screen {
             morcego.prepararZSorting(mScreenX, mScreenY);
             morcego.renderObj.alpha = 1f;
             listaDeDesenho.add(morcego.renderObj);
+        }
+
+        if (boss != null) {
+            TextureRegion frame = boss.getCurrentFrame();
+            if (frame != null) {
+                ObjetoRenderizavel bossRender = new ObjetoRenderizavel();
+                bossRender.textura = frame;
+                bossRender.drawX = boss.getScreenX() - (frame.getRegionWidth() / 2f);
+                bossRender.drawY = boss.getScreenY() - 175f; // + ajuste fino se precisar
+                bossRender.sortY = boss.getScreenY();
+                bossRender.alpha = 1f;
+                bossRender.isElementoMapa = false;
+                listaDeDesenho.add(bossRender);
+            }
         }
 
         // --- INÍCIO DA ALTERAÇÃO: CAMERA CULLING (OTIMIZAÇÃO) ---
@@ -540,12 +573,22 @@ public class GameScreen implements Screen {
                 if (morcego.isAtivo) desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
             }
 
+            shapeRenderer.setColor(Color.YELLOW);
+            if (boss != null) {
+                desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
+            }
+
             shapeRenderer.setColor(Color.GREEN);
             desenharRetanguloIsometrico(player.hitbox, shapeRenderer);
 
             if (player.estaAtacando) {
                 shapeRenderer.setColor(Color.BLUE);
                 desenharRetanguloIsometrico(player.hitboxAtaque, shapeRenderer);
+            }
+
+            if (player.estaAtacandoPesado) {
+                shapeRenderer.setColor(Color.ORANGE);
+                desenharRetanguloIsometrico(player.hitboxAtaquePesado, shapeRenderer);
             }
             shapeRenderer.end();
 
@@ -682,5 +725,6 @@ public class GameScreen implements Screen {
         mapaTiled.dispose();
         pixelPreto.dispose();
         portraitAephorul.dispose();
+        musicaFundo.stop();
     }
 }

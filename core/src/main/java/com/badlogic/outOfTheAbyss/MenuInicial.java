@@ -3,6 +3,8 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -32,6 +34,8 @@ public class MenuInicial implements Screen {
     private float transicaoAlpha = 0f;
     private final float VELOCIDADE_FADE = 1.0f;
     private Texture pixelPreto;
+    private Music musicaFundo;
+    private float volumeBase = 0.5f;
 
     public MenuInicial(final JogoIsometrico game) {
         this.game = game;
@@ -40,15 +44,24 @@ public class MenuInicial implements Screen {
             game.assets.load("background/tela-menu.png", Texture.class);
             game.assets.load("botao/botao_jogar.png", Texture.class);
             game.assets.load("botao/botao_sair.png", Texture.class);
-            game.assets.finishLoading(); // Trava a thread por milissegundos para concluir
+            game.assets.load("sons/Fantasy UI Vol (23).wav", Sound.class);
+            game.assets.load("sons/The Otherside.wav", Music.class);
+            game.assets.finishLoading();
         }
 
         stage = new Stage(new FitViewport(640, 360));
+
+        musicaFundo = game.assets.get("sons/The Otherside.wav", Music.class);
+        musicaFundo.setLooping(true);
+        musicaFundo.setVolume(volumeBase);
+        musicaFundo.play();
 
         // Obtém referências das texturas já decodificadas da RAM
         backgroundTexture = game.assets.get("background/tela-menu.png", Texture.class);
         playButtonTexture = game.assets.get("botao/botao_jogar.png", Texture.class);
         exitButtonTexture = game.assets.get("botao/botao_sair.png", Texture.class);
+
+        final Sound somClick = game.assets.get("sons/Fantasy UI - Twilight (4).wav", Sound.class);
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
@@ -65,6 +78,7 @@ public class MenuInicial implements Screen {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 if (!iniciandoTransicao) {
+                    somClick.play(1.0f);
                     game.carregarAssetsJogo();
                     iniciandoTransicao = true;
                 }
@@ -170,6 +184,11 @@ public class MenuInicial implements Screen {
 
             transicaoAlpha += delta * VELOCIDADE_FADE;
 
+            // Baixa o volume da música aos poucos enquanto o ecrã escurece
+            // Calcula o volume atual (vai de 0.5 até 0)
+            float volumeAtual = volumeBase * (1f - Math.min(transicaoAlpha, 1f));
+            musicaFundo.setVolume(volumeAtual);
+
             // 2. Garante explicitamente a ativação do Alpha (Pois o Stage pode ter desativado)
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -184,6 +203,7 @@ public class MenuInicial implements Screen {
 
             // 4. SÓ MUDA DE TELA após exibir a tela totalmente preta (e com uma sobrinha de tempo para os olhos)
             if (transicaoAlpha >= 1.05f) {
+                musicaFundo.stop();
                 game.setScreen(new TelaCarregamento(game));
                 dispose();
                 return;
