@@ -76,6 +76,11 @@ public class GameScreen implements Screen {
 
     Player player;
     PlayerController playerController;
+    private Texture uiIconAtaqueLeve;
+    private Texture uiIconAtaquePesado;
+    private Texture uiIconDash;
+    private Texture uiFrame;
+    private Texture uiSombraCooldown;
 
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
@@ -277,6 +282,19 @@ public class GameScreen implements Screen {
         }
 
         portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
+
+        // HUD Abilidades
+        uiIconAtaqueLeve = game.assets.get("abilidades/ataque_leve_icon.png", Texture.class);
+        uiIconAtaquePesado = game.assets.get("abilidades/ataque_pesado_icon.png", Texture.class);
+        uiIconDash = game.assets.get("abilidades/dash_icon.png", Texture.class);
+        uiFrame = game.assets.get("abilidades/frame_icon.png", Texture.class);
+
+        // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
+        Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixmapHUD.setColor(0, 0, 0, 0.75f);
+        pixmapHUD.fill();
+        uiSombraCooldown = new Texture(pixmapHUD);
+        pixmapHUD.dispose(); // Libera o pixmap da memória após gerar a textura
     }
 
     private Texture gerarTexturaLuz(int tamanho) {
@@ -680,6 +698,36 @@ public class GameScreen implements Screen {
             batch.setColor(Color.WHITE);
             batch.end();
         }
+
+        // HUD de skills
+        batch.begin();
+
+        game.batch.setProjectionMatrix(uiViewport.getCamera().combined);
+        game.batch.setColor(Color.WHITE); // Garante que a UI não herde nenhuma cor de dano/luz
+
+        // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
+        float slotSize = 48f;
+        float espacamento = 10f;
+        float margemDireita = 20f;
+        float margemInferior = 20f;
+
+        // Calcula posições X da direita para a esquerda
+        float xDash = 640f - margemDireita - slotSize;
+        float xPesado = xDash - slotSize - espacamento;
+        float xLeve = xPesado - slotSize - espacamento;
+        float uiY = margemInferior;
+
+        // Calcula as porcentagens de recarga atualizadas (0.0 a 1.0)
+        float porcLeve = MathUtils.clamp(player.attackTimer / player.tempoRecargaAtaque, 0f, 1f);
+        float porcPesado = MathUtils.clamp(player.attackPesadoTimer / player.tempoRecargaAtaquePesado, 0f, 1f);
+        float porcDash = MathUtils.clamp(player.cooldownDashTimer / player.tempoRecargaDash, 0f, 1f);
+
+        // Desenha os três slots com os ícones correspondentes
+        desenharSlotHabilidade(uiIconAtaqueLeve, uiFrame, xLeve, uiY, slotSize, porcLeve);
+        desenharSlotHabilidade(uiIconAtaquePesado, uiFrame, xPesado, uiY, slotSize, porcPesado);
+        desenharSlotHabilidade(uiIconDash, uiFrame, xDash, uiY, slotSize, porcDash);
+
+        batch.end();
     }
 
     private void gerarMorcegoAleatorio() {
@@ -707,6 +755,23 @@ public class GameScreen implements Screen {
         sr.line(sx4, sy4, sx1, sy1);
     }
 
+    private void desenharSlotHabilidade(Texture icone, Texture frame, float x, float y, float size, float porcentagemPronto) {
+        // 1. Desenha o Ícone base
+        game.batch.draw(icone, x, y, size, size);
+
+        // 2. Lógica da Sombra de Cooldown (Desenhada de cima para baixo)
+        // Se a porcentagem for menor que 1.0, significa que está recarregando
+        if (porcentagemPronto < 1f) {
+            float alturaSombra = size * (1f - porcentagemPronto); // Quanto falta para encher
+            float ySombra = y + size - alturaSombra; // Posiciona a sombra na parte de cima
+
+            game.batch.draw(uiSombraCooldown, x, ySombra, size, alturaSombra);
+        }
+
+        // 3. Desenha a Moldura (Frame) por cima de tudo para dar o acabamento limpo
+        game.batch.draw(frame, x, y, size, size);
+    }
+
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, false);
@@ -726,5 +791,6 @@ public class GameScreen implements Screen {
         pixelPreto.dispose();
         portraitAephorul.dispose();
         musicaFundo.stop();
+        if (uiSombraCooldown != null) uiSombraCooldown.dispose();
     }
 }
