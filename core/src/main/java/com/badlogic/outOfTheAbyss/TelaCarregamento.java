@@ -17,7 +17,7 @@ public class TelaCarregamento implements Screen {
     private final Texture iconeCarregamento;
 
     private float tempoDecorrido = 0f;
-    private final float TEMPO_MINIMO = 0.0f;
+    private final float TEMPO_MINIMO = 0.5f;
 
     // Máquina de Estados para a Transição Elden Ring
     private enum Estado { FADE_IN, PULSANDO, FADE_OUT }

@@ -76,7 +76,20 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/personagem_run_sw.png", Texture.class);
         assets.load("sons/Go Down.wav", Music.class);
 
-        // Abilidades
+        // Player
+        assets.load("personagem/Idle.png", Texture.class);
+        assets.load("personagem/Walk.png", Texture.class);
+        assets.load("personagem/Run.png", Texture.class);
+        assets.load("personagem/CrouchIdle.png", Texture.class);
+        assets.load("personagem/CrouchWalk.png", Texture.class);
+        assets.load("personagem/Rolling.png", Texture.class);
+        assets.load("personagem/Melee1.png", Texture.class);
+        assets.load("personagem/Melee2.png", Texture.class);
+        assets.load("personagem/Heal.png", Texture.class);
+
+        // Boss
+
+        // Habilidades
         assets.load("skills/ataque_leve_icon.png", Texture.class);
         assets.load("skills/ataque_pesado_icon.png", Texture.class);
         assets.load("skills/dash_icon.png", Texture.class);
