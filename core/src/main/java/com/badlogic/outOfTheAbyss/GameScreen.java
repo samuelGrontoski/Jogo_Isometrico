@@ -556,6 +556,11 @@ public class GameScreen implements Screen {
                 shapeRenderer.setColor(Color.BLUE);
                 desenharRetanguloIsometrico(player.hitboxAtaque, shapeRenderer);
             }
+
+            if (player.estaAtacandoPesado) {
+                shapeRenderer.setColor(Color.ORANGE);
+                desenharRetanguloIsometrico(player.hitboxAtaquePesado, shapeRenderer);
+            }
             shapeRenderer.end();
 
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);

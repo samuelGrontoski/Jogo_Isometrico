@@ -18,13 +18,19 @@ public class Player {
 
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
+    public Rectangle hitboxAtaquePesado;
 
     public boolean estaAtacando = false;
     private boolean danoAplicado = false;
+    public boolean estaAtacandoPesado = false;
+    private boolean danoPesadoAplicado = false;
 
     public float attackTimer = 0.41f;
     public final float duracaoAtaque = 0.2f;
     public final float tempoRecargaAtaque = 0.41f;
+    public float attackPesadoTimer = 2.0f;
+    public final float duracaoAtaquePesado = 0.3f;
+    public final float tempoRecargaAtaquePesado = 2.0f;
 
     public boolean estaDandoDash = false;
     public float dashTimer = 0f;
@@ -52,6 +58,7 @@ public class Player {
         this.inputDirecao = new Vector2();
         this.hitbox = new Rectangle(0, 0, 0.8f, 0.8f);
         this.hitboxAtaque = new Rectangle();
+        this.hitboxAtaquePesado = new Rectangle();
         this.renderObj = new ObjetoRenderizavel();
         this.controller = controller;
 
@@ -113,7 +120,7 @@ public class Player {
 
         float moveSpeed = velocidadeAtual * delta;
 
-        verificarAtaque(mouseMundoX, mouseMundoY);
+        verificarAtaque(delta, mouseMundoX, mouseMundoY);
         // Aplica e verifica a colisão tanto contra as pedras, quanto contra o array de blocos magnéticos lidos do TMX
         aplicarMovimentoComColisao(moveSpeed, hitboxesMapa);
 
@@ -156,43 +163,13 @@ public class Player {
         }
     }
 
-    private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
+    private void verificarAtaque(float delta, float mouseMundoX, float mouseMundoY) {
         if (controller.consumeAttack() && attackTimer >= tempoRecargaAtaque) {
             estaAtacando = true;
             attackTimer = 0f;
             danoAplicado = false;
 
-            float tileW = 32f;
-            float tileH = 16f;
-            float a = mouseMundoX / (tileW / 2f);
-            float b = mouseMundoY / (tileH / 2f);
-            float mouseCartesianX = (a + b) / 2f;
-            float mouseCartesianY = (b - a) / 2f;
-
-            float deltaX = mouseCartesianX - posicaoMundo.x;
-            float deltaY = mouseCartesianY - posicaoMundo.y;
-
-            float angle = MathUtils.atan2(deltaY, deltaX) * MathUtils.radiansToDegrees;
-            if (angle < 0) angle += 360f;
-
-            int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
-            switch (index) {
-                case 0: direcaoAtual = "NE"; break;
-                case 1: direcaoAtual = "N";  break;
-                case 2: direcaoAtual = "NW"; break;
-                case 3: direcaoAtual = "W";  break;
-                case 4: direcaoAtual = "SW"; break;
-                case 5: direcaoAtual = "S";  break;
-                case 6: direcaoAtual = "SE"; break;
-                case 7: direcaoAtual = "E";  break;
-            }
-
-            Vector2 vetorMira = new Vector2(deltaX, deltaY);
-            if (!vetorMira.isZero()) {
-                vetorMira.nor();
-            } else {
-                vetorMira.set(1, 0);
-            }
+            Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY);
 
             float alcance = 1.5f;
             float attackCenterX = posicaoMundo.x + (vetorMira.x * alcance);
@@ -200,6 +177,59 @@ public class Player {
 
             hitboxAtaque.set(attackCenterX, attackCenterY, 2f, 2f);
         }
+
+        // Ataque pesado
+        if (controller.consumeAttackPesado() && attackPesadoTimer >= tempoRecargaAtaquePesado) {
+            estaAtacandoPesado = true;
+            attackPesadoTimer = 0f;
+            danoPesadoAplicado = false;
+
+            Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY);
+
+            // 2. Projeta e centraliza a hitbox no ponto de impacto
+            float alcance = 2.0f;
+            float attackCenterX = posicaoMundo.x + (vetorMira.x * alcance);
+            float attackCenterY = posicaoMundo.y + (vetorMira.y * alcance);
+
+            // Subtraímos metade do tamanho (1.5f) para que a caixa (3x3) fique perfeitamente centralizada no alvo
+            hitboxAtaquePesado.set(attackCenterX, attackCenterY, 3f, 3f);
+        }
+    }
+
+    // Mira usada nos ataques leve e pesado
+    private Vector2 getVector2(float mouseMundoX, float mouseMundoY) {
+        float tileW = 32f;
+        float tileH = 16f;
+        float a = mouseMundoX / (tileW / 2f);
+        float b = mouseMundoY / (tileH / 2f);
+        float mouseCartesianX = (a + b) / 2f;
+        float mouseCartesianY = (b - a) / 2f;
+
+        float deltaX = mouseCartesianX - posicaoMundo.x;
+        float deltaY = mouseCartesianY - posicaoMundo.y;
+
+        float angle = MathUtils.atan2(deltaY, deltaX) * MathUtils.radiansToDegrees;
+        if (angle < 0) angle += 360f;
+
+        int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
+        switch (index) {
+            case 0: direcaoAtual = "NE"; break;
+            case 1: direcaoAtual = "N";  break;
+            case 2: direcaoAtual = "NW"; break;
+            case 3: direcaoAtual = "W";  break;
+            case 4: direcaoAtual = "SW"; break;
+            case 5: direcaoAtual = "S";  break;
+            case 6: direcaoAtual = "SE"; break;
+            case 7: direcaoAtual = "E";  break;
+        }
+
+        Vector2 vetorMira = new Vector2(deltaX, deltaY);
+        if (!vetorMira.isZero()) {
+            vetorMira.nor();
+        } else {
+            vetorMira.set(1, 0);
+        }
+        return vetorMira;
     }
 
     private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa) {
@@ -239,6 +269,20 @@ public class Player {
                 }
             }
             danoAplicado = true;
+        }
+
+        // Ataque pesado
+        if (attackPesadoTimer < tempoRecargaAtaquePesado) attackPesadoTimer += delta;
+        if (attackPesadoTimer >= duracaoAtaquePesado) estaAtacandoPesado = false;
+
+        if (estaAtacandoPesado && !danoPesadoAplicado) {
+            for (Morcego morcego : morcegos) {
+                if (morcego.isAtivo && hitboxAtaquePesado.overlaps(morcego.hitboxColisao)) {
+                    morcego.tomarDano(); // Aplique x2 caso queira dar o dobro de dano
+                    morcego.tomarDano();
+                }
+            }
+            danoPesadoAplicado = true;
         }
     }
 

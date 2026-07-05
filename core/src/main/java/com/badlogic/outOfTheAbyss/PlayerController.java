@@ -15,12 +15,14 @@ public class PlayerController implements InputProcessor {
     private boolean dashTriggered;
     private boolean attackTriggered;
     private boolean fullscreenTriggered;
+    private boolean attackPesadoTriggered = false;
 
     // Estados Isolados e Combos (ex: Segurar F3 e pressionar B)
     private boolean f3Held = false;
     private boolean f3ActionUsed = false;
     private boolean debugInfoToggle = false;
     private boolean hitboxesToggle = false;
+
 
     @Override
     public boolean keyDown(int keycode) {
@@ -78,6 +80,17 @@ public class PlayerController implements InputProcessor {
             attackTriggered = true;
             return true;
         }
+        // Verificação para o ataque pesado
+        if (button == Input.Buttons.RIGHT) {
+            attackPesadoTriggered = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
         return false;
     }
 
@@ -93,6 +106,14 @@ public class PlayerController implements InputProcessor {
     public boolean consumeAttack() {
         if (attackTriggered) {
             attackTriggered = false;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean consumeAttackPesado() {
+        if (attackPesadoTriggered) {
+            attackPesadoTriggered = false;
             return true;
         }
         return false;
@@ -125,11 +146,6 @@ public class PlayerController implements InputProcessor {
     @Override
     public boolean keyTyped(char character) {
         // Retorne false se o evento não foi consumido aqui
-        return false;
-    }
-
-    @Override
-    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
         return false;
     }
 
