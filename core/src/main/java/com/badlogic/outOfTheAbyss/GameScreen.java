@@ -754,7 +754,7 @@ public class GameScreen implements Screen {
         // Calcula as porcentagens de recarga atualizadas (0.0 a 1.0)
         float porcLeve = MathUtils.clamp(player.attackTimer / player.tempoRecargaAtaque, 0f, 1f);
         float porcPesado = MathUtils.clamp(player.attackPesadoTimer / player.tempoRecargaAtaquePesado, 0f, 1f);
-        float porcDash = MathUtils.clamp(player.cooldownDashTimer / player.tempoRecargaDash, 0f, 1f);
+        float porcDash = MathUtils.clamp(player.cooldownRollTimer / player.tempoRecargaRoll, 0f, 1f);
 
         // Desenha os três slots com os ícones correspondentes
         desenharSlotHabilidade(uiIconAtaqueLeve, uiFrame, xLeve, uiY, slotSize, porcLeve);
