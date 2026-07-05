@@ -708,11 +708,11 @@ public class GameScreen implements Screen {
         // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
         float slotSize = 48f;
         float espacamento = 10f;
-        float margemDireita = 20f;
+        float margemDireita = 60f;
         float margemInferior = 20f;
 
         // Calcula posições X da direita para a esquerda
-        float xDash = 640f - margemDireita - slotSize;
+        float xDash = uiViewport.getWorldWidth() - margemDireita - slotSize;
         float xPesado = xDash - slotSize - espacamento;
         float xLeve = xPesado - slotSize - espacamento;
         float uiY = margemInferior;
