@@ -81,14 +81,6 @@ public class GameScreen implements Screen {
     TextureRegion lightBufferRegion;
     Texture lightBrush;
 
-    private final Pool<SombraDash> sombraPool = new Pool<SombraDash>() {
-        @Override
-        protected SombraDash newObject() { return new SombraDash(); }
-    };
-    Array<SombraDash> sombrasAtivas = new Array<>();
-    float tempoCriarProximaSombra = 0f;
-    final float intervalo_sombras = 0.03f;
-
     private final Pool<Morcego> morcegoPool = new Pool<Morcego>() {
         @Override
         protected Morcego newObject() { return new Morcego(); }
@@ -366,33 +358,6 @@ public class GameScreen implements Screen {
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
-        if (player.estaDandoDash) {
-            tempoCriarProximaSombra -= delta;
-            if (tempoCriarProximaSombra <= 0) {
-                SombraDash novaSombra = sombraPool.obtain();
-                novaSombra.render.textura = player.renderObj.textura;
-                novaSombra.render.drawX = player.renderObj.drawX;
-                novaSombra.render.drawY = player.renderObj.drawY;
-                novaSombra.render.sortY = player.renderObj.sortY;
-                novaSombra.render.alpha = 0.5f;
-                novaSombra.tempoDeVida = novaSombra.tempo_max_vida;
-
-                sombrasAtivas.add(novaSombra);
-                tempoCriarProximaSombra = intervalo_sombras;
-            }
-        }
-
-        for (int i = sombrasAtivas.size - 1; i >= 0; i--) {
-            SombraDash sombra = sombrasAtivas.get(i);
-            sombra.tempoDeVida -= delta;
-            if (sombra.tempoDeVida <= 0) {
-                sombrasAtivas.removeIndex(i);
-                sombraPool.free(sombra);
-            } else {
-                sombra.render.alpha = (sombra.tempoDeVida / sombra.tempo_max_vida) * 0.5f;
-            }
-        }
-
         if (morcegos.size < max_morcegos_no_mapa) {
             timerRespawnMorcego += delta;
             float tempo_respawn_morcego = 3.0f;
@@ -482,8 +447,6 @@ public class GameScreen implements Screen {
         }
 
         // --- FIM DA ALTERAÇÃO ---
-
-        for (SombraDash sombra : sombrasAtivas) listaDeDesenho.add(sombra.render);
 
         listaDeDesenho.sort(zIndexComparator);
 
@@ -637,7 +600,7 @@ public class GameScreen implements Screen {
             batch.draw(portraitAephorul, 60, 60, 320, 320);
 
             font.setColor(Color.FIREBRICK);
-            font.draw(batch, "Obrigado por jogar nosso jogo!", 420, 180);
+            font.draw(batch, "Esse é apenas o início da sua jornada.", 420, 180);
 
             font.setColor(Color.WHITE);
             font.draw(batch, "O abismo aguarda seu retorno, herói...", 420, 120);
