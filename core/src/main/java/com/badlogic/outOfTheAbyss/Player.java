@@ -126,7 +126,7 @@ public class Player {
         return mapaAnimacoes;
     }
 
-    public void updateInput(float delta, Array<Rectangle> hitboxesMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+    public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;
         }
@@ -181,7 +181,9 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque(mouseMundoX, mouseMundoY);
-        aplicarMovimentoComColisao(moveSpeed, hitboxesMapa);
+
+        // Repasse o hitboxBoss para a função de movimento
+        aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
     }
@@ -318,7 +320,7 @@ public class Player {
         return vetorMira;
     }
 
-    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa) {
+    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
             float oldX = posicaoMundo.x;
@@ -326,18 +328,28 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.x = oldX;
+            // Agora verifica colisão geral (mapa + boss)
+            if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.y = oldY;
+            // Agora verifica colisão geral (mapa + boss)
+            if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.y = oldY;
         }
     }
 
-    private boolean verificaColisaoMapa(Array<Rectangle> hitboxesMapa) {
+    private boolean verificaColisoes(Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
+        // 1. Verifica colisão com as paredes/mapa
         for (Rectangle rect : hitboxesMapa) {
             if (hitbox.overlaps(rect)) return true;
         }
+
+        // 2. Verifica colisão com o corpo do boss
+        // (A checagem != null previne crash caso o boss ainda não tenha spawnado ou já tenha morrido)
+        if (hitboxBoss != null && hitbox.overlaps(hitboxBoss)) {
+            return true;
+        }
+
         return false;
     }
 
