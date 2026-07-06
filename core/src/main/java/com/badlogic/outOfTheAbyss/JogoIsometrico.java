@@ -8,6 +8,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
@@ -18,6 +19,7 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFont
 public class JogoIsometrico extends Game {
     public SpriteBatch batch;
     public BitmapFont font;
+    public BitmapFont fontTelas;
     public FitViewport viewport;
     public AssetManager assets;
 
@@ -26,27 +28,34 @@ public class JogoIsometrico extends Game {
         batch = new SpriteBatch();
         viewport = new FitViewport(640, 360);
 
-        // --- INÍCIO DA CRIAÇÃO DA FONTE TTF ---
+        // --- INÍCIO DA CRIAÇÃO DAS FONTES TTF ---
 
-        // 1. Aponta para o arquivo .ttf na sua pasta assets
-        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/GeistPixel-Regular-VariableFont_ELSH.ttf"));
+        // 1. Configuração da Fonte Padrão (font)
         FreeTypeFontParameter parameter = new FreeTypeFontParameter();
-
-        // 2. Parâmetros de customização da fonte
-        parameter.size = 24; // Tamanho em pixels (ajuste para ficar bonito no seu Viewport)
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/MedievalSharp-Regular.ttf"));
+        parameter.size = 24;
         parameter.color = Color.WHITE;
-        parameter.borderWidth = 1; // Cria uma bordinha preta leve ao redor das letras para facilitar a leitura
+        parameter.borderWidth = 1;
         parameter.borderColor = Color.BLACK;
         parameter.minFilter = Texture.TextureFilter.Nearest;
-        parameter.magFilter = Texture.TextureFilter.Nearest; // Mantém o estilo "Pixel Art" crocante da sua fonte
-
-        // 3. O gerador desenha o mapa na RAM e cria a BitmapFont pronta para uso
+        parameter.magFilter = Texture.TextureFilter.Nearest;
         font = generator.generateFont(parameter);
 
-        // 4. Libera a fábrica da memória RAM (OBRIGATÓRIO PARA EVITAR MEMORY LEAK)
-        generator.dispose();
+        // 2. Configuração da Segunda Fonte (fontTelas)
+        FreeTypeFontParameter parameterTelas = new FreeTypeFontParameter();
+        FreeTypeFontGenerator generatorTelas = new FreeTypeFontGenerator(Gdx.files.internal("fontes/Varnyx-Regular.ttf"));
+        parameterTelas.size = 24;
+        parameterTelas.color = Color.WHITE;
+        parameterTelas.borderWidth = 1;
+        parameterTelas.borderColor = Color.BLACK;
+        parameterTelas.minFilter = Texture.TextureFilter.Nearest;
+        parameterTelas.magFilter = Texture.TextureFilter.Nearest;
+        fontTelas = generatorTelas.generateFont(parameterTelas);
 
-        // --- FIM DA CRIAÇÃO DA FONTE ---
+        // 3. Descarta o gerador apenas UMA vez no final
+        generator.dispose();
+        generatorTelas.dispose();
+        // --- FIM DA CRIAÇÃO DAS FONTES ---
 
         assets = new AssetManager();
         assets.setLoader(TiledMap.class, new TmxMapLoader());
@@ -69,6 +78,7 @@ public class JogoIsometrico extends Game {
     // Chamado pelo MenuInicial quando o botão de Jogar for clicado
     public void carregarAssetsJogo() {
         assets.load("mapa/map_cave.tmx", TiledMap.class);
+        assets.load("mapa/Objetos_Cenario/parede_teia.png", Texture.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
         assets.load("personagem/personagem_idle_se.png", Texture.class);
         assets.load("personagem/personagem_idle_sw.png", Texture.class);
@@ -77,6 +87,8 @@ public class JogoIsometrico extends Game {
         assets.load("sons/Go Down.wav", Music.class);
         assets.load("sons/Boss_music.mp3", Music.class);
         assets.load("sons/Boss_Die.mp3", Sound.class);
+        assets.load("sons/Die.mp3", Sound.class);
+        assets.load("sons/The Black Mirror.wav", Music.class);
 
         // Player
         assets.load("personagem/Idle.png", Texture.class);
@@ -88,15 +100,15 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/Melee1.png", Texture.class);
         assets.load("personagem/Melee2.png", Texture.class);
         assets.load("personagem/Heal.png", Texture.class);
+        assets.load("personagem/TakeDamage.png", Texture.class);
         assets.load("personagem/Die.png", Texture.class);
+        assets.load("sons/ataque_espada.wav", Sound.class);
+        assets.load("sons/bater_na_porta.wav", Sound.class);
+        assets.load("sons/cura.mp3", Sound.class);
+        assets.load("sons/passos.wav", Sound.class);
+        assets.load("personagem/Health_Bar.png", Texture.class);
 
         // Boss
-
-        // Habilidades
-        assets.load("skills/ataque_leve_icon.png", Texture.class);
-        assets.load("skills/ataque_pesado_icon.png", Texture.class);
-        assets.load("skills/dash_icon.png", Texture.class);
-        assets.load("skills/frame_icon.png", Texture.class);
         assets.load("boss/Idle/Idle_SE.png", Texture.class);
         assets.load("boss/Idle/Idle_SW.png", Texture.class);
         assets.load("boss/Walk/Walk_SE.png", Texture.class);
@@ -122,6 +134,10 @@ public class JogoIsometrico extends Game {
         assets.load("skills/mouse_esq_icon.png", Texture.class);
         assets.load("skills/shift_icon.png", Texture.class);
         assets.load("skills/tecla1_icon.png", Texture.class);
+
+        // Partículas
+        assets.load("particulas/cura.p", ParticleEffect.class);
+        assets.load("particulas/ataque_aranha.p", ParticleEffect.class);
     }
 
     @Override
@@ -133,6 +149,7 @@ public class JogoIsometrico extends Game {
     public void dispose() {
         batch.dispose();
         font.dispose();
+        fontTelas.dispose();
         assets.dispose();
     }
 }
