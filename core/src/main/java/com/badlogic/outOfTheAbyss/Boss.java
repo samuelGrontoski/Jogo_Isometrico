@@ -14,7 +14,7 @@ public class Boss {
     public Vector2 position;
     public float speed = 7f;
     public float aggroRange = 25f;
-    public float attackRange = 5f;
+    public float attackRange = 6f;
     public String currentState = "IDLE";
 
     public Rectangle hitbox;
@@ -134,15 +134,20 @@ public class Boss {
         stateTime += delta;
         atualizarHitbox();
 
-        // 1. Reduz os tempos de cooldown
-        if (attackCooldownTimer > 0f) {
-            attackCooldownTimer -= delta;
-        }
-        if (timerCooldownRanged > 0f) {
-            timerCooldownRanged -= delta;
-        }
+        if (attackCooldownTimer > 0f) attackCooldownTimer -= delta;
+        if (timerCooldownRanged > 0f) timerCooldownRanged -= delta;
 
-        float distance = position.dst(playerPosition);
+        // --- CORREÇÃO DA DISTÂNCIA ---
+        // Calcula o ponto central exato de ambas as hitboxes
+        float bossCenterX = hitbox.x + (hitbox.width / 2f);
+        float bossCenterY = hitbox.y + (hitbox.height / 2f);
+
+        float playerCenterX = playerHitbox.x + (playerHitbox.width / 2f);
+        float playerCenterY = playerHitbox.y + (playerHitbox.height / 2f);
+
+        // Calcula a distância real baseada nos centros
+        float distance = Vector2.dst(bossCenterX, bossCenterY, playerCenterX, playerCenterY);
+
         String estadoAnterior = currentState;
         float margem = 1.5f;
 
@@ -187,7 +192,7 @@ public class Boss {
 
         // --- EXECUTA A AÇÃO DO ESTADO ATUAL ---
         if (currentState.equals("ATTACK")) {
-            atacar(delta, estadoAnterior, playerPosition);
+            atacar(delta, estadoAnterior, playerPosition, playerHitbox);
         }
         else if (currentState.equals("ATTACK2")) {
             atacarLonge(delta, estadoAnterior, playerPosition); // Chama a lógica de atirar a teia
@@ -290,7 +295,8 @@ public class Boss {
 
     // --- LÓGICA DE ATAQUE ---
 
-    private void atacar(float delta, String estadoAnterior, Vector2 playerPosition) {
+    // Alteramos a assinatura para receber o playerHitbox
+    private void atacar(float delta, String estadoAnterior, Vector2 playerPosition, Rectangle playerHitbox) {
         boolean primeiraVezEntrandoEmAttack = !estadoAnterior.equals("ATTACK");
 
         if (primeiraVezEntrandoEmAttack || precisaReiniciarAtaque) {
@@ -298,14 +304,29 @@ public class Boss {
             attackStateTime = 0f;
             danoAplicado = false;
 
-            // Encara o player
-            Vector2 direcaoParaPlayer = new Vector2(playerPosition).sub(position);
+            // 1. Calcula o centro exato das duas entidades
+            float bossCenterX = hitbox.x + (hitbox.width / 2f);
+            float bossCenterY = hitbox.y + (hitbox.height / 2f);
+
+            float playerCenterX = playerHitbox.x + (playerHitbox.width / 2f);
+            float playerCenterY = playerHitbox.y + (playerHitbox.height / 2f);
+
+            // 2. Calcula a direção usando os centros (Sem distorção da sprite)
+            Vector2 direcaoParaPlayer = new Vector2(playerCenterX - bossCenterX, playerCenterY - bossCenterY);
+
+            // Define a direção visual (sprite SE ou SW)
             direcaoAtual = direcaoParaPlayer.x >= 0 ? "SE" : "SW";
 
-            // 1. TRAVA A POSIÇÃO DO PLAYER NESTE MOMENTO
+            // 3. Trava o vetor de ataque nos 8 eixos
+            Vector2 direcaoNormalizada = direcaoParaPlayer.nor();
+            direcaoVetorAtaque.set(MathUtils.round(direcaoNormalizada.x), MathUtils.round(direcaoNormalizada.y));
+
+            if (direcaoVetorAtaque.x == 0 && direcaoVetorAtaque.y == 0) {
+                direcaoVetorAtaque.set(1, 0);
+            }
+
             alvoAtaqueTravar.set(playerPosition);
 
-            // 2. Calcula a área de dano em cima dessa posição travada
             calcularTilesTelegraph();
         }
 
@@ -349,12 +370,16 @@ public class Boss {
     private void calcularTilesTelegraph() {
         tilesAtaqueTelegraph.clear();
 
-        // Pega o tile central onde o player estava no início do ataque
-        int centroX = MathUtils.floor(alvoAtaqueTravar.x);
-        int centroY = MathUtils.floor(alvoAtaqueTravar.y);
+        float offsetDistancia = 3.5f;
 
-        // Cria uma área 3x3 (quadrado) centralizada no player
-        // Se quiser um ataque maior ou menor, basta alterar os limites do loop (-1 até 1)
+        // Resgata o centro da hitbox amarela do boss
+        float bossCenterX = hitbox.x + (hitbox.width / 2f);
+        float bossCenterY = hitbox.y + (hitbox.height / 2f);
+
+        // O centro do grid 3x3 agora nasce do centro real do Boss
+        int centroX = MathUtils.floor(bossCenterX + (direcaoVetorAtaque.x * offsetDistancia));
+        int centroY = MathUtils.floor(bossCenterY + (direcaoVetorAtaque.y * offsetDistancia));
+
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 tilesAtaqueTelegraph.add(new Vector2(centroX + dx, centroY + dy));

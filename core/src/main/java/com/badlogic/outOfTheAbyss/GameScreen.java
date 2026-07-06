@@ -345,7 +345,13 @@ public class GameScreen implements Screen {
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
-        player.updateInput(delta, hitboxesMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+        // --- CORREÇÃO AQUI ---
+        // Extraímos a hitbox do boss de forma segura (se o boss for null, passamos null)
+        Rectangle hitboxDoBoss = (boss != null) ? boss.hitbox : null;
+
+        // Chamada atualizada respeitando a nova ordem de parâmetros na classe Player
+        player.updateInput(delta, hitboxesMapa, hitboxDoBoss, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+
         return true;
     }
 
@@ -474,7 +480,7 @@ public class GameScreen implements Screen {
                     ObjetoRenderizavel teiaRender = new ObjetoRenderizavel();
                     teiaRender.textura = frameTeia;
                     teiaRender.drawX = tScreenX - (frameTeia.getRegionWidth() / 2f);
-                    teiaRender.drawY = tScreenY - 40f; // Ajuste fino da altura isométrica
+                    teiaRender.drawY = tScreenY - 0f; // Ajuste fino da altura isométrica
 
                     teiaRender.sortY = tScreenY;
                     teiaRender.alpha = 1f;

@@ -36,7 +36,7 @@ public class TeiaProjetil {
         this.direcaoSprite = direcaoBoss;
 
         this.direcao = new Vector2(alvoMundo).sub(posicaoMundo).nor();
-        this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 2f, 2f);
+        this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 3f, 3f);
 
         // Recortando o SpriteSheet do projétil (4 frames)
         TextureRegion[][] tmp = TextureRegion.split(sheetTeia, sheetTeia.getWidth() / 4, sheetTeia.getHeight());
