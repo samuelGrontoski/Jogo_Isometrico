@@ -78,9 +78,18 @@ public class GameScreen implements Screen {
     PlayerController playerController;
     private Texture uiIconAtaqueLeve;
     private Texture uiIconAtaquePesado;
+    private Texture uiIconCorrida;
+    private Texture uiIconCura;
     private Texture uiIconDash;
     private Texture uiFrame;
     private Texture uiSombraCooldown;
+
+    // Ícones dos botões de acionamento
+    private Texture btnMouseEsq;
+    private Texture btnMouseDir;
+    private Texture btnEspaco;
+    private Texture btnTecla1;
+    private Texture btnShift;
 
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
@@ -275,11 +284,19 @@ public class GameScreen implements Screen {
 
         portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
 
-        // HUD Abilidades
+        // HUD Habilidades
         uiIconAtaqueLeve = game.assets.get("skills/ataque_leve_icon.png", Texture.class);
         uiIconAtaquePesado = game.assets.get("skills/ataque_pesado_icon.png", Texture.class);
+        uiIconCorrida = game.assets.get("skills/corrida_icon.png", Texture.class);
+        uiIconCura = game.assets.get("skills/cura_icon.png", Texture.class);
         uiIconDash = game.assets.get("skills/dash_icon.png", Texture.class);
         uiFrame = game.assets.get("skills/frame_icon.png", Texture.class);
+        // --- ÍCONES DOS BOTÕES ---
+        btnMouseEsq = game.assets.get("skills/mouse_esq_icon.png", Texture.class);
+        btnMouseDir = game.assets.get("skills/mouse_dir_icon.png", Texture.class);
+        btnEspaco = game.assets.get("skills/espaco_icon.png", Texture.class);
+        btnTecla1 = game.assets.get("skills/tecla1_icon.png", Texture.class);
+        btnShift = game.assets.get("skills/shift_icon.png", Texture.class);
 
         // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -669,26 +686,77 @@ public class GameScreen implements Screen {
         game.batch.setColor(Color.WHITE); // Garante que a UI não herde nenhuma cor de dano/luz
 
         // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
-        float slotSize = 48f;
+        float slotSize = 60f;
         float espacamento = 10f;
         float margemDireita = 60f;
         float margemInferior = 20f;
 
         // Calcula posições X da direita para a esquerda
-        float xDash = uiViewport.getWorldWidth() - margemDireita - slotSize;
-        float xPesado = xDash - slotSize - espacamento;
+        float xCorrida = uiViewport.getWorldWidth() - margemDireita - slotSize;
+        float xCura = xCorrida - slotSize - espacamento;
+        float xRoll = xCura - slotSize - espacamento;
+        float xPesado = xRoll - slotSize - espacamento;
         float xLeve = xPesado - slotSize - espacamento;
         float uiY = margemInferior;
 
         // Calcula as porcentagens de recarga atualizadas (0.0 a 1.0)
+        float porcCura = (player.curasAtuais > 0) ? MathUtils.clamp(player.cooldownCuraTimer / player.tempoRecargaCura, 0f, 1f) : 0f;
         float porcLeve = MathUtils.clamp(player.attackTimer / player.tempoRecargaAtaque, 0f, 1f);
         float porcPesado = MathUtils.clamp(player.attackPesadoTimer / player.tempoRecargaAtaquePesado, 0f, 1f);
-        float porcDash = MathUtils.clamp(player.cooldownDashTimer / player.tempoRecargaDash, 0f, 1f);
+        float porcRoll = MathUtils.clamp(player.cooldownRollTimer / player.tempoRecargaRoll, 0f, 1f);
 
-        // Desenha os três slots com os ícones correspondentes
+        // Desenha os slots com os ícones correspondentes
         desenharSlotHabilidade(uiIconAtaqueLeve, uiFrame, xLeve, uiY, slotSize, porcLeve);
         desenharSlotHabilidade(uiIconAtaquePesado, uiFrame, xPesado, uiY, slotSize, porcPesado);
-        desenharSlotHabilidade(uiIconDash, uiFrame, xDash, uiY, slotSize, porcDash);
+        desenharSlotHabilidade(uiIconDash, uiFrame, xRoll, uiY, slotSize, porcRoll);
+        desenharSlotHabilidade(uiIconCura, uiFrame, xCura, uiY, slotSize, porcCura);
+        desenharSlotHabilidade(uiIconCorrida, uiFrame, xCorrida, uiY, slotSize, 1f);
+
+        // --- DESENHA O CONTADOR DE CURAS ---
+        // Usamos a fonte já existente para escrever sutilmente no canto inferior direito do ícone
+        font.getData().setScale(1.2f); // tamanho da fonte
+        font.setColor(Color.WHITE);
+
+        // A string que será desenhada (ex: "2", "1" ou "0")
+        String textoCura = String.valueOf(player.curasAtuais);
+        float textX = xCura + slotSize - 20f;
+        float textY = uiY + 24f;
+        font.draw(game.batch, textoCura, textX, textY);
+
+        // Restaura a escala e cor para não afetar outras coisas que usem a fonte
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+
+        // Tamanho padrão dos botões quadrados (Q, Mouse, etc)
+        float btnSize = 24f;
+
+        // Se a sua imagem do espaço ou do shift for retangular (mais comprida),
+        // você pode ajustar essas larguras específicas abaixo:
+        float btnWidthShift = 36f;
+        float btnWidthEspaco = 40f;
+
+        // Distância vertical: Começa onde a skill está (uiY) + a altura da skill (slotSize) + uma margem de 5 pixels
+        float btnY = uiY + slotSize + 5f;
+
+        // Desenha Mouse Esquerdo (Ataque Leve)
+        float xBtnEsq = xLeve + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnMouseEsq, xBtnEsq, btnY, btnSize, btnSize);
+
+        // Desenha Mouse Direito (Ataque Pesado)
+        float xBtnDir = xPesado + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnMouseDir, xBtnDir, btnY, btnSize, btnSize);
+
+        // Desenha Espaço (Dash) - Usando a largura ajustável
+        float xBtnEspaco = xRoll + (slotSize / 2f) - (btnWidthEspaco / 2f);
+        game.batch.draw(btnEspaco, xBtnEspaco, btnY, btnWidthEspaco, btnSize);
+
+        // Desenha Tecla 1 (Cura)
+        float xBtn1 = xCura + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnTecla1, xBtn1, btnY, btnSize, btnSize);
+
+        // Desenha Shift (Corrida) - Usando a largura ajustável
+        float xBtnShift = xCorrida + (slotSize / 2f) - (btnWidthShift / 2f);
+        game.batch.draw(btnShift, xBtnShift, btnY, btnWidthShift, btnSize);
 
         batch.end();
     }
