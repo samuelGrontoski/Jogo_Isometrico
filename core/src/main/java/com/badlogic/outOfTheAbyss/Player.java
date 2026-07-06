@@ -165,7 +165,7 @@ public class Player {
 
         if (estaCurando) {
             healTimer += delta;
-            velocidadeAtual = 0f;
+            //velocidadeAtual = 0f;
             estaCorrendo = false;
             estaAgachado = false;
             if (healTimer >= duracaoHeal) estaCurando = false;
