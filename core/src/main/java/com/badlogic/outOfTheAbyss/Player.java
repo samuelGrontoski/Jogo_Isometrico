@@ -13,6 +13,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Player {
+    // --- STATUS DE VIDA ---
+    public int vidaMaxima = 5;
+    public int vida = vidaMaxima;
+    public boolean isDead = false;
+
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
@@ -59,7 +64,6 @@ public class Player {
 
     float stateTime;
 
-    // Dicionários para guardar as 8 direções de cada estado
     Map<String, Animation<TextureRegion>> idleAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> walkAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> runAnimations = new HashMap<>();
@@ -69,6 +73,7 @@ public class Player {
     Map<String, Animation<TextureRegion>> attackLeveAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> attackPesadoAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> healAnimations = new HashMap<>();
+    Map<String, Animation<TextureRegion>> deathAnimations = new HashMap<>();
 
     public ObjetoRenderizavel renderObj;
     private final PlayerController controller;
@@ -96,9 +101,10 @@ public class Player {
         Texture attackLeveSheet = assets.get("personagem/Melee1.png", Texture.class);
         Texture attackPesadoSheet = assets.get("personagem/Melee2.png", Texture.class);
         Texture healSheet = assets.get("personagem/Heal.png", Texture.class);
+        Texture deathSheet = assets.get("personagem/Die.png", Texture.class);
 
-        int cols = 15; // 15 frames por animação
-        int rows = 8;  // 8 direções
+        int cols = 15;
+        int rows = 8;
 
         idleAnimations = criarAnimacao(idleSheet, cols, rows, 0.1f, Animation.PlayMode.LOOP);
         walkAnimations = criarAnimacao(walkSheet, cols, rows, 0.08f, Animation.PlayMode.LOOP);
@@ -109,9 +115,11 @@ public class Player {
         attackLeveAnimations = criarAnimacao(attackLeveSheet, cols, rows, duracaoAtaque / cols, Animation.PlayMode.NORMAL);
         attackPesadoAnimations = criarAnimacao(attackPesadoSheet, cols, rows, duracaoAtaquePesado / cols, Animation.PlayMode.NORMAL);
         healAnimations = criarAnimacao(healSheet, cols, rows, duracaoHeal / cols, Animation.PlayMode.NORMAL);
+
+        // Carrega a animação de morte com PlayMode.NORMAL para poder travar no último frame
+        deathAnimations = criarAnimacao(deathSheet, cols, rows, 0.15f, Animation.PlayMode.NORMAL);
     }
 
-    // Função universal que mapeia qualquer Spritesheet padronizado e devolve o Dicionário pronto
     private Map<String, Animation<TextureRegion>> criarAnimacao(Texture sheet, int cols, int rows, float frameDuration, Animation.PlayMode mode) {
         Map<String, Animation<TextureRegion>> mapaAnimacoes = new HashMap<>();
         String[] direcoesOrdem = {"E", "SE", "S", "SW", "W", "NW", "N", "NE"};
@@ -130,7 +138,9 @@ public class Player {
         return mapaAnimacoes;
     }
 
-    public void updateInput(float delta, Array<Rectangle> hitboxesMapa, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+    public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+        if (isDead) return; // Se morto, ignora todos os inputs físicos (O ESC fica a cargo da GameScreen)
+
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;
         }
@@ -153,7 +163,6 @@ public class Player {
 
         float velocidadeAtual = velocidadeBase;
 
-        // --- MÁQUINA DE ESTADO ---
         if (estaCurando) {
             healTimer += delta;
             //velocidadeAtual = 0f;
@@ -190,7 +199,7 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque(mouseMundoX, mouseMundoY);
-        aplicarMovimentoComColisao(moveSpeed, hitboxesMapa);
+        aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
     }
@@ -242,11 +251,9 @@ public class Player {
             attackTimer = 0f;
             danoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
             float alcanceLeve = 2.0f;
@@ -269,14 +276,12 @@ public class Player {
             attackPesadoTimer = 0f;
             danoPesadoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
-            float alcancePesado = 2.0f; // Ataque pesado precisa ir mais longe para ficar fora da hitbox
+            float alcancePesado = 2.0f;
             float larguraHitboxPesado = 2.4f;
             float alturaHitboxPesado = 2.4f;
 
@@ -292,7 +297,6 @@ public class Player {
         }
     }
 
-    // Mira usada nos ataques leve e pesado
     private Vector2 getVector2(float mouseMundoX, float mouseMundoY, float origemX, float origemY) {
         float tileW = 32f;
         float tileH = 16f;
@@ -301,7 +305,6 @@ public class Player {
         float mouseCartesianX = (a + b) / 2f;
         float mouseCartesianY = (b - a) / 2f;
 
-        // O ângulo agora leva em consideração a verdadeira origem do corpo do jogador
         float deltaX = mouseCartesianX - origemX;
         float deltaY = mouseCartesianY - origemY;
 
@@ -329,7 +332,7 @@ public class Player {
         return vetorMira;
     }
 
-    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa) {
+    private void aplicarMovimentoComColisao(float moveSpeed, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
         if (!inputDirecao.isZero()) {
             inputDirecao.nor();
             float oldX = posicaoMundo.x;
@@ -337,46 +340,78 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.x = oldX;
+            if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            if (verificaColisaoMapa(hitboxesMapa)) posicaoMundo.y = oldY;
+            if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.y = oldY;
         }
     }
 
-    private boolean verificaColisaoMapa(Array<Rectangle> hitboxesMapa) {
+    private boolean verificaColisoes(Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
         for (Rectangle rect : hitboxesMapa) {
             if (hitbox.overlaps(rect)) return true;
         }
+
+        if (hitboxBoss != null && hitbox.overlaps(hitboxBoss)) {
+            return true;
+        }
+
         return false;
     }
 
-    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos) {
+    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos, Boss boss) {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
+        // Ataque Leve
         if (estaAtacando && !danoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
                     morcego.tomarDano();
                 }
             }
+            if (boss != null && !boss.isDead && hitboxAtaque.overlaps(boss.hitbox)) {
+                boss.tomarDano(1);
+            }
             danoAplicado = true;
         }
 
-        // Ataque pesado
         if (attackPesadoTimer < tempoRecargaAtaquePesado) attackPesadoTimer += delta;
         if (attackPesadoTimer >= duracaoAtaquePesado) estaAtacandoPesado = false;
 
+        // Ataque Pesado
         if (estaAtacandoPesado && !danoPesadoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaquePesado.overlaps(morcego.hitboxColisao)) {
-                    morcego.tomarDano(); // Aplique x2 caso queira dar o dobro de dano
+                    morcego.tomarDano();
                     morcego.tomarDano();
                 }
             }
+            if (boss != null && !boss.isDead && hitboxAtaquePesado.overlaps(boss.hitbox)) {
+                boss.tomarDano(2);
+            }
             danoPesadoAplicado = true;
+        }
+    }
+
+    // --- FUNÇÃO PARA TOMAR DANO ---
+    public void tomarDano(int dano) {
+        if (isDead) return;
+
+        vida -= dano;
+
+        if (vida <= 0) {
+            vida = 0;
+            isDead = true;
+            stateTime = 0f; // Reseta o tempo para iniciar a animação de morte
+
+            // Interrompe qualquer ação atual
+            estaRolando = false;
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaCurando = false;
+            estaEmMovimento = false;
         }
     }
 
@@ -384,8 +419,13 @@ public class Player {
         stateTime += delta;
         TextureRegion currentFrame;
 
-        // PRIORIDADE DE RENDERIZAÇÃO
-        if (estaCurando) {
+        // --- RENDERIZAÇÃO DA MORTE ---
+        if (isDead) {
+            Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
+            if (anim == null) anim = deathAnimations.get("SE");
+            currentFrame = anim.getKeyFrame(stateTime, false); // "false" trava no último frame
+
+        } else if (estaCurando) {
             Animation<TextureRegion> anim = healAnimations.get(direcaoAtual);
             if (anim == null) anim = healAnimations.get("SE");
             currentFrame = anim.getKeyFrame(healTimer, false);
@@ -426,7 +466,6 @@ public class Player {
             currentFrame = animacaoIdleCerta.getKeyFrame(stateTime, true);
         }
 
-        // --- SISTEMA DE ESCALA VISUAL (80%) ---
         float escalaVisual = 0.8f;
 
         renderObj.textura = currentFrame;
