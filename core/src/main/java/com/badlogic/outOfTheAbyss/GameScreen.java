@@ -90,6 +90,10 @@ public class GameScreen implements Screen {
     private Texture btnTecla1;
     private Texture btnShift;
 
+    // Variáveis da Barra de Vida
+    private Texture uiHealthBarSheet;
+    private TextureRegion[] uiHealthBarFrames;
+
     // --- LUZ E FOG ---
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
@@ -341,6 +345,18 @@ public class GameScreen implements Screen {
         btnEspaco = game.assets.get("skills/espaco_icon.png", Texture.class);
         btnTecla1 = game.assets.get("skills/tecla1_icon.png", Texture.class);
         btnShift = game.assets.get("skills/shift_icon.png", Texture.class);
+
+        // Inicialização e fatiamento da Barra de Vida
+        uiHealthBarSheet = game.assets.get("personagem/Health_Bar.png", Texture.class);
+        uiHealthBarFrames = new TextureRegion[6];
+
+        // Divide a textura inteira por 6 para descobrir a largura exata de 1 frame
+        int frameWidth = uiHealthBarSheet.getWidth() / 6;
+        int frameHeight = uiHealthBarSheet.getHeight();
+
+        for (int i = 0; i < 6; i++) {
+            uiHealthBarFrames[i] = new TextureRegion(uiHealthBarSheet, i * frameWidth, 0, frameWidth, frameHeight);
+        }
 
         // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -868,6 +884,16 @@ public class GameScreen implements Screen {
         float espacamento = 10f;
         float margemDireita = 60f;
         float margemInferior = 20f;
+        float margemEsquerda = 60f;
+
+        int indexVida = MathUtils.clamp(player.vida, 0, 5);
+        TextureRegion currentHealthFrame = uiHealthBarFrames[indexVida];
+
+        float escalaBarra = 4f;
+        float barraWidth = currentHealthFrame.getRegionWidth() * escalaBarra;
+        float barraHeight = currentHealthFrame.getRegionHeight() * escalaBarra;
+
+        game.batch.draw(currentHealthFrame, margemEsquerda, margemInferior, barraWidth, barraHeight);
 
         // Calcula posições X da direita para a esquerda
         float xCorrida = uiViewport.getWorldWidth() - margemDireita - slotSize;

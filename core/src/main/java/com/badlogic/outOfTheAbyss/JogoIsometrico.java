@@ -87,6 +87,7 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/Melee2.png", Texture.class);
         assets.load("personagem/Heal.png", Texture.class);
         assets.load("personagem/Die.png", Texture.class);
+        assets.load("personagem/Health_Bar.png", Texture.class);
 
         // Boss
         assets.load("boss/Idle/Idle_SE.png", Texture.class);
