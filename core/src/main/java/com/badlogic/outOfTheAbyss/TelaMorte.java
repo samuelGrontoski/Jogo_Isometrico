@@ -76,17 +76,28 @@ public class TelaMorte implements Screen {
 
         float centroY = viewport.getWorldHeight() / 2f;
 
-        game.font.getData().setScale(2.5f);
-        game.font.setColor(1f, 0f, 0f, Math.max(0f, alphaTexto));
-        game.font.draw(game.batch, "VOCÊ MORREU!",
+        game.fontTelas.getData().setScale(2.5f);
+        game.fontTelas.setColor(1f, 0f, 0f, Math.max(0f, alphaTexto));
+        game.fontTelas.draw(game.batch, "VOCE MORREU!",
             0, centroY + 40f, viewport.getWorldWidth(), Align.center, false);
 
-        game.font.getData().setScale(1.0f);
-        game.font.setColor(1f, 1f, 1f, Math.max(0f, alphaTexto));
-        game.font.draw(game.batch, "Pressione qualquer tecla",
+        game.fontTelas.getData().setScale(1.0f);
+
+        float alphaPiscando = Math.max(0f, alphaTexto);
+
+        if (estadoAtual == Estado.ESPERANDO_INPUT) {
+            alphaPiscando = 0.5f + (float)(Math.sin(System.currentTimeMillis() / 300.0) * 0.5);
+
+        } else if (estadoAtual == Estado.FADE_OUT) {
+            float pulso = 0.5f + (float)(Math.sin(System.currentTimeMillis() / 300.0) * 0.5);
+            alphaPiscando = Math.max(0f, alphaTexto) * pulso;
+        }
+
+        game.fontTelas.setColor(1f, 1f, 1f, alphaPiscando);
+        game.fontTelas.draw(game.batch, "Pressione qualquer tecla",
             0, centroY - 40f, viewport.getWorldWidth(), Align.center, false);
 
-        game.font.setColor(1f, 1f, 1f, 1f);
+        game.fontTelas.setColor(1f, 1f, 1f, 1f);
         game.batch.setColor(1f, 1f, 1f, 1f);
 
         game.batch.end();
