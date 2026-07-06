@@ -19,7 +19,7 @@ public class TeiaProjetil {
     public Rectangle hitbox;
 
     private Vector2 posicaoInicial;
-    public float distanciaMaxima = 25f; // Quantos blocos a teia voa antes de cair (ajuste como quiser)
+    public float distanciaMaxima = 15f; // Quantos blocos a teia voa antes de cair (ajuste como quiser)
     private float tempoNoChao = 0f;
     private final float TEMPO_DURACAO_TEIA = 4.0f; // Quanto tempo a teia fica no chão
 

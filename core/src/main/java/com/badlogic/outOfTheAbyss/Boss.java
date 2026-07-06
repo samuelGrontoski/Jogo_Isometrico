@@ -16,6 +16,7 @@ public class Boss {
     public int vida = vidaMaxima;
     public boolean isDead = false;
     private boolean isBlinking = false;
+    public boolean isAtivo = false;
     private float blinkTimer = 0f;
     public Vector2 position;
     public float speed = 7f;
@@ -65,7 +66,7 @@ public class Boss {
     public float attackCooldown = 0.7f;
 
     // Ataque de Teia
-    public float rangedAttackRange = 25f;
+    public float rangedAttackRange = 15f;
     private float timerCooldownRanged = 0f;
     private final float COOLDOWN_RANGED = 3.0f;
 
@@ -159,6 +160,12 @@ public class Boss {
         }
 
         if (isDead) {
+            stateTime += delta;
+            return;
+        }
+
+        if (!isAtivo) {
+            currentState = "IDLE";
             stateTime += delta;
             return;
         }

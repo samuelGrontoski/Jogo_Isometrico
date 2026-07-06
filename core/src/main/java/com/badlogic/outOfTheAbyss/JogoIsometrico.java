@@ -73,6 +73,7 @@ public class JogoIsometrico extends Game {
     // Chamado pelo MenuInicial quando o botão de Jogar for clicado
     public void carregarAssetsJogo() {
         assets.load("mapa/map_cave.tmx", TiledMap.class);
+        assets.load("mapa/Objetos_Cenario/parede_teia.png", Texture.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
         assets.load("personagem/personagem_idle_se.png", Texture.class);
         assets.load("personagem/personagem_idle_sw.png", Texture.class);

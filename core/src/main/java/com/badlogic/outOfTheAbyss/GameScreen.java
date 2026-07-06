@@ -140,6 +140,19 @@ public class GameScreen implements Screen {
     private float alphaMorte = 0f;
     private Texture pixelPretoTransicao;
 
+    // --- VARIÁVEIS DA CUTSCENE DO BOSS ---
+    Polygon gatilhoEntradaBoss;
+    private boolean cutsceneIniciada = false;
+    private boolean cutsceneAndando = false;
+    private float timerBossAcordar = 0f;
+    private boolean bossAcordou = false;
+
+    // Controles da Parede de Teia
+    private Texture textureParedeTeia;
+    private boolean portaFechada = false;
+    private Rectangle hitboxPorta;
+    private ObjetoRenderizavel portaRenderizavel;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
@@ -173,6 +186,7 @@ public class GameScreen implements Screen {
         pixmap.dispose();
 
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
+        textureParedeTeia = game.assets.get("mapa/Objetos_Cenario/parede_teia.png", Texture.class);
 
         // 1. O loop agora varre automaticamente todas as camadas existentes ("ground", "limites_mapa", "paredes")
         // transladando todas para a esquerda de forma uníssona para manter alinhamento perfeito.
@@ -314,6 +328,20 @@ public class GameScreen implements Screen {
 
                         gatilhosMusicaBoss.add(new Polygon(verticesFisica));
                     }
+
+                    Object propEntrada = objeto.getProperties().get("entradaBoss");
+                    if (propEntrada != null && (Boolean)propEntrada) {
+                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
+                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
+                        float[] verticesFisica = new float[verticesTiled.length];
+
+                        // Mesma conversão de escala que você usou para o gatilho da música
+                        for (int i = 0; i < verticesTiled.length; i += 2) {
+                            verticesFisica[i] = verticesTiled[i + 1] / tile_height;
+                            verticesFisica[i + 1] = -(verticesTiled[i] / tile_height);
+                        }
+                        gatilhoEntradaBoss = new Polygon(verticesFisica);
+                    }
                 }
             }
         }
@@ -447,6 +475,44 @@ public class GameScreen implements Screen {
     }
 
     private void logic(float delta) {
+        // LÓGICA DA CUTSCENE DO BOSS ---
+
+        // 1. Verifica se o player pisou na entrada
+        if (!cutsceneIniciada && gatilhoEntradaBoss != null) {
+            float centroX = player.hitbox.x + (player.hitbox.width / 2f);
+            float centroY = player.hitbox.y + (player.hitbox.height / 2f);
+
+            if (gatilhoEntradaBoss.contains(centroX, centroY)) {
+                cutsceneIniciada = true;
+                cutsceneAndando = true;
+                player.emCutscene = true;
+                // Define o ponto alvo que você pediu
+                player.destinoCutscene.set(66f, -31f);
+            }
+        }
+
+        // 2. Controla o andamento do player e o timer
+        if (cutsceneAndando) {
+            // Se o player chegou muito perto do destino (0.3f de tolerância)
+            if (player.posicaoMundo.dst(player.destinoCutscene) <= 0.3f) {
+                cutsceneAndando = false;
+                player.emCutscene = false; // Devolve os controles ao jogador
+
+                // Opcional: Faz o jogador olhar para noroeste (onde o boss está) ao chegar no ponto
+                player.direcaoAtual = "NW";
+
+                timerBossAcordar = 1.5f; // Dispara o cronômetro do boss
+            }
+        } else if (cutsceneIniciada && !bossAcordou) {
+            timerBossAcordar -= delta;
+            if (timerBossAcordar <= 0f) {
+                bossAcordou = true;
+                if (boss != null) boss.isAtivo = true;
+                fecharPortaBoss();
+            }
+        }
+        // --- FIM DA CUTSCENE ---
+
         // --- SISTEMA DE INTERAÇÃO ---
         pertoDoCristal = false;
 
@@ -481,6 +547,12 @@ public class GameScreen implements Screen {
         // fazendo o crossfade retornar para a música normal.
         if (boss != null && boss.isDead) {
             naSalaDoBoss = false;
+
+            if (portaFechada) {
+                portaFechada = false;
+                hitboxesMapa.removeValue(hitboxPorta, true);
+                elementosMapaRenderizaveis.removeValue(portaRenderizavel, true);
+            }
         }
 
         float velocidadeFade = 1.0f * delta; // Velocidade da transição (1 segundo para trocar)
@@ -1011,6 +1083,46 @@ public class GameScreen implements Screen {
         Morcego m = morcegoPool.obtain();
         m.init(new Vector2(px, py), textureMorcegoFly);
         morcegos.add(m);
+    }
+
+    private void fecharPortaBoss() {
+        if (gatilhoEntradaBoss == null) return;
+
+        portaFechada = true;
+
+        // 1. Cria a barreira física invisível baseada no polígono da entrada
+        Rectangle bounds = gatilhoEntradaBoss.getBoundingRectangle();
+        hitboxPorta = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Adiciona na lista geral de colisões (bloqueia o Player e o Boss de sair)
+        hitboxesMapa.add(hitboxPorta);
+
+        // 2. Cria a arte visual da teia para participar do Z-Sorting (Profundidade isométrica)
+        portaRenderizavel = new ObjetoRenderizavel();
+        portaRenderizavel.textura = new TextureRegion(textureParedeTeia);
+
+        // Encontra o centro matemático da entrada
+        float centroMundoX = bounds.x + (bounds.width / 2f);
+        float centroMundoY = bounds.y + (bounds.height / 2f);
+
+        // Converte para as coordenadas de tela Isométrica
+        float pScreenX = (centroMundoX - centroMundoY) * (tile_width / 2f);
+        float pScreenY = (centroMundoX + centroMundoY) * (tile_height / 2f);
+
+        // Centraliza a imagem da teia no eixo X
+        portaRenderizavel.drawX = pScreenX - (portaRenderizavel.textura.getRegionWidth() / 2f);
+        // O eixo Y pode precisar de um pequeno ajuste dependendo de quão alta é a sua imagem da teia
+        portaRenderizavel.drawY = pScreenY;
+
+        // Define a ordem de desenho para renderizar corretamente atrás ou na frente do player
+        portaRenderizavel.sortY = pScreenY;
+
+        portaRenderizavel.isElementoMapa = false;
+        portaRenderizavel.alpha = 1f;
+        portaRenderizavel.color = Color.WHITE;
+
+        // Adiciona ao cenário. O jogo passará a desenhar essa teia automaticamente!
+        elementosMapaRenderizaveis.add(portaRenderizavel);
     }
 
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
