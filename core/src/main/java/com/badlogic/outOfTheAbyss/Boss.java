@@ -15,7 +15,7 @@ import com.badlogic.gdx.utils.Pool;
 
 public class Boss {
     public ParticleEffect efeitoAtaque;
-    public int vidaMaxima = 1;
+    public int vidaMaxima = 10;
     public int vida = vidaMaxima;
     public boolean isDead = false;
     private boolean isBlinking = false;
