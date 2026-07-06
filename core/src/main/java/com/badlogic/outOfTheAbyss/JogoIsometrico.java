@@ -8,6 +8,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
@@ -132,6 +133,10 @@ public class JogoIsometrico extends Game {
         assets.load("skills/mouse_esq_icon.png", Texture.class);
         assets.load("skills/shift_icon.png", Texture.class);
         assets.load("skills/tecla1_icon.png", Texture.class);
+
+        // Partículas
+        assets.load("particulas/cura.p", ParticleEffect.class);
+        assets.load("particulas/ataque_aranha.p", ParticleEffect.class);
     }
 
     @Override
