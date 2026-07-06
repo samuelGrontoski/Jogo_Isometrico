@@ -76,7 +76,7 @@ public class TelaMorte implements Screen {
 
         float centroY = viewport.getWorldHeight() / 2f;
 
-        game.fontTelas.getData().setScale(2.5f);
+        game.fontTelas.getData().setScale(2f);
         game.fontTelas.setColor(1f, 0f, 0f, Math.max(0f, alphaTexto));
         game.fontTelas.draw(game.batch, "VOCE MORREU!",
             0, centroY + 40f, viewport.getWorldWidth(), Align.center, false);
