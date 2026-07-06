@@ -4,6 +4,7 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -31,10 +32,15 @@ public class Player {
     public int vida = vidaMaxima;
     public boolean isDead = false;
 
+    // Variáveis para a animação de tomar dano (Hit Stun)
+    public boolean estaTomandoDano = false;
+    public float takeDamageTimer = 0f;
+    public final float duracaoTakeDamage = 0.2f;
+
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
-    public String direcaoAtual = "SE";
+    public String direcaoAtual = "NW";
     public float velocidadeBase = 7.5f;
 
     // Controles de estado
@@ -47,6 +53,7 @@ public class Player {
     private boolean danoPesadoAplicado = false;
 
     // --- STATUS DA CURA ---
+    public ParticleEffect efeitoCura;
     public boolean estaCurando = false;
     public float healTimer = 0f;
     public final float duracaoHeal = 0.7f;
@@ -90,6 +97,7 @@ public class Player {
     Map<String, Animation<TextureRegion>> attackLeveAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> attackPesadoAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> healAnimations = new HashMap<>();
+    Map<String, Animation<TextureRegion>> takeDamageAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> deathAnimations = new HashMap<>();
 
     public ObjetoRenderizavel renderObj;
@@ -106,6 +114,10 @@ public class Player {
         this.somAtaque = assets.get("sons/ataque_espada.wav", Sound.class);
         this.somCura = assets.get("sons/cura.mp3", Sound.class);
         this.somPassos = assets.get("sons/passos.wav", Sound.class);
+        // Pega a base da partícula e cria uma cópia para o player usar
+        ParticleEffect baseEffect = assets.get("particulas/cura.p", ParticleEffect.class);
+        this.efeitoCura = new ParticleEffect(baseEffect);
+        this.efeitoCura.scaleEffect(0.35f);
 
         carregarAnimacoes(assets);
         atualizarHitbox();
@@ -121,6 +133,7 @@ public class Player {
         Texture attackLeveSheet = assets.get("personagem/Melee1.png", Texture.class);
         Texture attackPesadoSheet = assets.get("personagem/Melee2.png", Texture.class);
         Texture healSheet = assets.get("personagem/Heal.png", Texture.class);
+        Texture takeDamageSheet = assets.get("personagem/TakeDamage.png", Texture.class);
         Texture deathSheet = assets.get("personagem/Die.png", Texture.class);
 
         int cols = 15;
@@ -135,8 +148,7 @@ public class Player {
         attackLeveAnimations = criarAnimacao(attackLeveSheet, cols, rows, duracaoAtaque / cols, Animation.PlayMode.NORMAL);
         attackPesadoAnimations = criarAnimacao(attackPesadoSheet, cols, rows, duracaoAtaquePesado / cols, Animation.PlayMode.NORMAL);
         healAnimations = criarAnimacao(healSheet, cols, rows, duracaoHeal / cols, Animation.PlayMode.NORMAL);
-
-        // Carrega a animação de morte com PlayMode.NORMAL para poder travar no último frame
+        takeDamageAnimations = criarAnimacao(takeDamageSheet, cols, rows, duracaoTakeDamage / cols, Animation.PlayMode.NORMAL);
         deathAnimations = criarAnimacao(deathSheet, cols, rows, 0.15f, Animation.PlayMode.NORMAL);
     }
 
@@ -216,23 +228,34 @@ public class Player {
         }
         inputDirecao.set(0, 0);
 
-        if (!estaAtacando && !estaAtacandoPesado && !estaRolando && !estaCurando) {
+        if (!estaAtacando && !estaAtacandoPesado && !estaRolando && !estaCurando && !estaTomandoDano) {
             lerInputsController();
         }
 
-        if (controller.consumeRoll() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && cooldownRollTimer >= tempoRecargaRoll) {
+        if (controller.consumeRoll() && !estaTomandoDano && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && cooldownRollTimer >= tempoRecargaRoll) {
             iniciarRoll();
         }
 
-        if (controller.consumeHeal() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && curasAtuais > 0 && cooldownCuraTimer >= tempoRecargaCura) {
+        if (controller.consumeHeal() && !estaTomandoDano && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && curasAtuais > 0 && cooldownCuraTimer >= tempoRecargaCura) {
             iniciarHeal();
         }
 
         float velocidadeAtual = velocidadeBase;
 
-        if (estaCurando) {
+        if (estaTomandoDano) {
+            takeDamageTimer += delta;
+            velocidadeAtual = 0f;
+            estaCorrendo = false;
+            estaAgachado = false;
+
+            if (takeDamageTimer >= duracaoTakeDamage) {
+                estaTomandoDano = false;
+            }
+            inputDirecao.set(0, 0);
+            estaEmMovimento = false;
+
+        } else if (estaCurando) {
             healTimer += delta;
-            //velocidadeAtual = 0f;
             estaCorrendo = false;
             estaAgachado = false;
             if (healTimer >= duracaoHeal) estaCurando = false;
@@ -270,22 +293,15 @@ public class Player {
 
         estaEmMovimento = !inputDirecao.isZero();
 
-        if (estaEmMovimento && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando) {
+        if (estaEmMovimento && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && !estaTomandoDano) {
             stepTimer += delta;
-
-            // Define o intervalo dependendo do estado atual do player
             float intervaloAtual = estaCorrendo ? intervaloPassoCorrendo : (estaAgachado ? intervaloPassoAgachado : intervaloPassoAndando);
 
-            // Quando o timer atinge o intervalo, toca o som e zera o timer
             if (stepTimer >= intervaloAtual) {
-                // Toca os passos baixinho (ex: 20% do volume) para não irritar o jogador
                 somPassos.play(0.13f);
                 stepTimer = 0f;
             }
         } else {
-            // Forçamos o stepTimer para um valor alto quando o jogador está parado.
-            // Isso garante que, assim que ele apertar W, A, S ou D, o primeiro som de
-            // passo toque IMEDIATAMENTE (dando feedback de resposta instantânea).
             stepTimer = 100f;
         }
     }
@@ -330,14 +346,16 @@ public class Player {
         curasAtuais--;
         cooldownCuraTimer = 0f;
         somCura.play(0.5f);
+
         vida++;
         if (vida > vidaMaxima) {
             vida = vidaMaxima;
         }
+        efeitoCura.start();
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
-        if (controller.consumeAttack() && attackTimer >= tempoRecargaAtaque && !estaRolando && !estaAtacandoPesado && !estaCurando) {
+        if (controller.consumeAttack() && attackTimer >= tempoRecargaAtaque && !estaTomandoDano && !estaRolando && !estaAtacandoPesado && !estaCurando) {
             estaAtacando = true;
             attackTimer = 0f;
             danoAplicado = false;
@@ -364,7 +382,7 @@ public class Player {
             somAtaque.play(0.2f);
         }
 
-        if (controller.consumeAttackPesado() && attackPesadoTimer >= tempoRecargaAtaquePesado && !estaRolando && !estaAtacando && !estaCurando) {
+        if (controller.consumeAttackPesado() && attackPesadoTimer >= tempoRecargaAtaquePesado && !estaTomandoDano && !estaRolando && !estaAtacando && !estaCurando) {
             estaAtacandoPesado = true;
             attackPesadoTimer = 0f;
             danoPesadoAplicado = false;
@@ -499,9 +517,20 @@ public class Player {
         if (vida <= 0) {
             vida = 0;
             isDead = true;
-            stateTime = 0f; // Reseta o tempo para iniciar a animação de morte
+            stateTime = 0f;
 
-            // Interrompe qualquer ação atual
+            estaRolando = false;
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaCurando = false;
+            estaEmMovimento = false;
+            estaTomandoDano = false;
+        } else {
+            // NOVO: Inicia animação de dor
+            estaTomandoDano = true;
+            takeDamageTimer = 0f;
+
+            // Interrompe qualquer ação que o jogador estivesse fazendo
             estaRolando = false;
             estaAtacando = false;
             estaAtacandoPesado = false;
@@ -514,28 +543,37 @@ public class Player {
         stateTime += delta;
         TextureRegion currentFrame;
 
-        // --- RENDERIZAÇÃO DA MORTE ---
+        // --- HIERARQUIA DE RENDERIZAÇÃO ---
         if (isDead) {
             Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
             if (anim == null) anim = deathAnimations.get("SE");
-            currentFrame = anim.getKeyFrame(stateTime, false); // "false" trava no último frame
+            currentFrame = anim.getKeyFrame(stateTime, false);
+
+        } else if (estaTomandoDano) {
+            Animation<TextureRegion> anim = takeDamageAnimations.get(direcaoAtual);
+            if (anim == null) anim = takeDamageAnimations.get("SE");
+            currentFrame = anim.getKeyFrame(takeDamageTimer, false);
 
         } else if (estaCurando) {
             Animation<TextureRegion> anim = healAnimations.get(direcaoAtual);
             if (anim == null) anim = healAnimations.get("SE");
             currentFrame = anim.getKeyFrame(healTimer, false);
+
         } else if (estaRolando) {
             Animation<TextureRegion> anim = rollAnimations.get(direcaoAtual);
             if (anim == null) anim = rollAnimations.get("SE");
             currentFrame = anim.getKeyFrame(rollTimer, false);
+
         } else if (estaAtacandoPesado) {
             Animation<TextureRegion> anim = attackPesadoAnimations.get(direcaoAtual);
             if (anim == null) anim = attackPesadoAnimations.get("SE");
             currentFrame = anim.getKeyFrame(attackPesadoTimer, false);
+
         } else if (estaAtacando) {
             Animation<TextureRegion> anim = attackLeveAnimations.get(direcaoAtual);
             if (anim == null) anim = attackLeveAnimations.get("SE");
             currentFrame = anim.getKeyFrame(attackTimer, false);
+
         } else if (estaEmMovimento) {
             Animation<TextureRegion> animacaoMovimento;
             if (estaAgachado) {
@@ -549,6 +587,7 @@ public class Player {
                 if (animacaoMovimento == null) animacaoMovimento = walkAnimations.get("SE");
             }
             currentFrame = animacaoMovimento.getKeyFrame(stateTime, true);
+
         } else {
             Animation<TextureRegion> animacaoIdleCerta;
             if (estaAgachado) {
@@ -578,6 +617,11 @@ public class Player {
         renderObj.drawX = screenX - renderObj.originX;
         renderObj.drawY = screenY;
         renderObj.sortY = screenY;
+
+        // Centraliza a partícula no meio do player (ajuste o + 16f para subir/descer a origem da partícula)
+        if (!efeitoCura.isComplete()) {
+            efeitoCura.setPosition(screenX, screenY + 32f);
+        }
     }
 
     private void atualizarHitbox() {

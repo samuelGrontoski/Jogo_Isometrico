@@ -8,6 +8,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
@@ -18,7 +19,7 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFont
 public class JogoIsometrico extends Game {
     public SpriteBatch batch;
     public BitmapFont font;
-    public BitmapFont fontMorte;
+    public BitmapFont fontTelas;
     public FitViewport viewport;
     public AssetManager assets;
 
@@ -28,8 +29,10 @@ public class JogoIsometrico extends Game {
         viewport = new FitViewport(640, 360);
 
         // --- INÍCIO DA CRIAÇÃO DAS FONTES TTF ---
-        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/GeistPixel-Regular-VariableFont_ELSH.ttf"));
+
+        // 1. Configuração da Fonte Padrão (font)
         FreeTypeFontParameter parameter = new FreeTypeFontParameter();
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/MedievalSharp-Regular.ttf"));
         parameter.size = 24;
         parameter.color = Color.WHITE;
         parameter.borderWidth = 1;
@@ -37,19 +40,21 @@ public class JogoIsometrico extends Game {
         parameter.minFilter = Texture.TextureFilter.Nearest;
         parameter.magFilter = Texture.TextureFilter.Nearest;
         font = generator.generateFont(parameter);
-        generator.dispose();
 
-        // NOVO: Fonte antiquity-print
-        FreeTypeFontGenerator generatorMorte = new FreeTypeFontGenerator(Gdx.files.internal("fontes/antiquity-print.ttf"));
-        FreeTypeFontParameter parameterMorte = new FreeTypeFontParameter();
-        parameterMorte.size = 48;
-        parameterMorte.color = Color.RED;
-        parameterMorte.borderWidth = 2;
-        parameterMorte.borderColor = Color.BLACK;
-        parameterMorte.minFilter = Texture.TextureFilter.Nearest;
-        parameterMorte.magFilter = Texture.TextureFilter.Nearest;
-        fontMorte = generatorMorte.generateFont(parameterMorte);
-        generatorMorte.dispose();
+        // 2. Configuração da Segunda Fonte (fontTelas)
+        FreeTypeFontParameter parameterTelas = new FreeTypeFontParameter();
+        FreeTypeFontGenerator generatorTelas = new FreeTypeFontGenerator(Gdx.files.internal("fontes/Varnyx-Regular.ttf"));
+        parameterTelas.size = 24;
+        parameterTelas.color = Color.WHITE;
+        parameterTelas.borderWidth = 1;
+        parameterTelas.borderColor = Color.BLACK;
+        parameterTelas.minFilter = Texture.TextureFilter.Nearest;
+        parameterTelas.magFilter = Texture.TextureFilter.Nearest;
+        fontTelas = generatorTelas.generateFont(parameterTelas);
+
+        // 3. Descarta o gerador apenas UMA vez no final
+        generator.dispose();
+        generatorTelas.dispose();
         // --- FIM DA CRIAÇÃO DAS FONTES ---
 
         assets = new AssetManager();
@@ -83,6 +88,7 @@ public class JogoIsometrico extends Game {
         assets.load("sons/Boss_music.mp3", Music.class);
         assets.load("sons/Boss_Die.mp3", Sound.class);
         assets.load("sons/Die.mp3", Sound.class);
+        assets.load("sons/The Black Mirror.wav", Music.class);
 
         // Player
         assets.load("personagem/Idle.png", Texture.class);
@@ -94,6 +100,7 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/Melee1.png", Texture.class);
         assets.load("personagem/Melee2.png", Texture.class);
         assets.load("personagem/Heal.png", Texture.class);
+        assets.load("personagem/TakeDamage.png", Texture.class);
         assets.load("personagem/Die.png", Texture.class);
         assets.load("sons/ataque_espada.wav", Sound.class);
         assets.load("sons/bater_na_porta.wav", Sound.class);
@@ -127,6 +134,10 @@ public class JogoIsometrico extends Game {
         assets.load("skills/mouse_esq_icon.png", Texture.class);
         assets.load("skills/shift_icon.png", Texture.class);
         assets.load("skills/tecla1_icon.png", Texture.class);
+
+        // Partículas
+        assets.load("particulas/cura.p", ParticleEffect.class);
+        assets.load("particulas/ataque_aranha.p", ParticleEffect.class);
     }
 
     @Override
@@ -138,7 +149,7 @@ public class JogoIsometrico extends Game {
     public void dispose() {
         batch.dispose();
         font.dispose();
-        fontMorte.dispose();
+        fontTelas.dispose();
         assets.dispose();
     }
 }

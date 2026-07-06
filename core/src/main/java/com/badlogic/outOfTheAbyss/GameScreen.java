@@ -130,7 +130,7 @@ public class GameScreen implements Screen {
     private Texture pixelPreto;
     private final float VELOCIDADE_FADE = 1.0f;
 
-    Array<Vector2> cristaisInterativos = new Array<>();
+    Array<Polygon> cristaisInterativos = new Array<>();
     private boolean pertoDoCristal = false;
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
@@ -161,6 +161,12 @@ public class GameScreen implements Screen {
     private boolean portaFechada = false;
     private Rectangle hitboxPorta;
     private ObjetoRenderizavel portaRenderizavel;
+
+    // VARIÁVEIS DA SAÍDA / FIM DE JOGO ---
+    Array<Polygon> objetosSaida = new Array<>();
+    private boolean pertoDaSaida = false;
+    private boolean iniciandoFimDeJogo = false;
+    private float alphaFim = 0f;
 
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
@@ -279,11 +285,6 @@ public class GameScreen implements Screen {
                                 luzesAzuis.add(new Vector2(pScreenX, pScreenY + elevacaoCristal));
                             }
 
-                            Boolean mostrarMensagem = cell.getTile().getProperties().get("mostrarMensagem", Boolean.class);
-                            if (mostrarMensagem != null && mostrarMensagem) {
-                                cristaisInterativos.add(new Vector2(worldX, worldY));
-                            }
-
                             obj.flipX = cell.getFlipHorizontally();
                             obj.flipY = cell.getFlipVertically();
                             obj.rotation = cell.getRotation();
@@ -310,46 +311,62 @@ public class GameScreen implements Screen {
         MapLayer layerGatilhos = mapaTiled.getLayers().get("Gatilhos");
         if (layerGatilhos != null) {
             for (MapObject objeto : layerGatilhos.getObjects()) {
-                // AGORA LÊ POLÍGONOS!
+
+                // Cria a forma física de colisão, independentemente se você usou
+                // a ferramenta Polígono ou Retângulo no Tiled Map Editor!
+                Polygon polyFisica = null;
+
                 if (objeto instanceof PolygonMapObject) {
+                    float[] verticesTiled = ((PolygonMapObject) objeto).getPolygon().getTransformedVertices();
+                    float[] verticesFisica = new float[verticesTiled.length];
+                    for (int i = 0; i < verticesTiled.length; i += 2) {
+                        verticesFisica[i] = verticesTiled[i + 1] / tile_height;
+                        verticesFisica[i + 1] = -(verticesTiled[i] / tile_height);
+                    }
+                    polyFisica = new Polygon(verticesFisica);
+
+                } else if (objeto instanceof com.badlogic.gdx.maps.objects.RectangleMapObject) {
+                    Rectangle rect = ((com.badlogic.gdx.maps.objects.RectangleMapObject) objeto).getRectangle();
+                    float[] verticesTiled = new float[] {
+                        rect.x, rect.y,
+                        rect.x + rect.width, rect.y,
+                        rect.x + rect.width, rect.y + rect.height,
+                        rect.x, rect.y + rect.height
+                    };
+                    float[] verticesFisica = new float[verticesTiled.length];
+                    for (int i = 0; i < verticesTiled.length; i += 2) {
+                        verticesFisica[i] = verticesTiled[i + 1] / tile_height;
+                        verticesFisica[i + 1] = -(verticesTiled[i] / tile_height);
+                    }
+                    polyFisica = new Polygon(verticesFisica);
+                }
+
+                // Se conseguiu extrair a forma geométrica, checa o que ela faz:
+                if (polyFisica != null) {
+
+                    // 1. Música do Boss
                     Object propMusica = objeto.getProperties().get("musica");
-                    // Proteção caso tenha escrito com 'M' maiúsculo no Tiled
                     if (propMusica == null) propMusica = objeto.getProperties().get("Musica");
-
                     if (propMusica != null && "boss".equalsIgnoreCase(propMusica.toString().trim())) {
-                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
-
-                        // Pega os pontos do polígono já convertidos para o ponto x,y dele no Tiled
-                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
-                        float[] verticesFisica = new float[verticesTiled.length];
-
-                        // Converte cada ponto do polígono para a nossa matemática física!
-                        for (int i = 0; i < verticesTiled.length; i += 2) {
-                            float pX = verticesTiled[i];
-                            float pY = verticesTiled[i + 1];
-
-                            float tX = pX / tile_height;
-                            float tY = pY / tile_height;
-
-                            verticesFisica[i] = tY;        // worldX = TiledY
-                            verticesFisica[i + 1] = -tX;   // worldY = -TiledX
-                        }
-
-                        gatilhosMusicaBoss.add(new Polygon(verticesFisica));
+                        gatilhosMusicaBoss.add(polyFisica);
                     }
 
+                    // 2. Entrada do Boss (Cutscene)
                     Object propEntrada = objeto.getProperties().get("entradaBoss");
                     if (propEntrada != null && (Boolean)propEntrada) {
-                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
-                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
-                        float[] verticesFisica = new float[verticesTiled.length];
+                        gatilhoEntradaBoss = polyFisica;
+                    }
 
-                        // Mesma conversão de escala que você usou para o gatilho da música
-                        for (int i = 0; i < verticesTiled.length; i += 2) {
-                            verticesFisica[i] = verticesTiled[i + 1] / tile_height;
-                            verticesFisica[i + 1] = -(verticesTiled[i] / tile_height);
-                        }
-                        gatilhoEntradaBoss = new Polygon(verticesFisica);
+                    // 3. NOVO: Gatilho do Cristal
+                    Object propMsg = objeto.getProperties().get("mostrarMensagem");
+                    if (propMsg != null && (Boolean)propMsg) {
+                        cristaisInterativos.add(polyFisica);
+                    }
+
+                    // 4. NOVO: Gatilho da Saída do Fim do Jogo
+                    Object propSaida = objeto.getProperties().get("mensagemSaida");
+                    if (propSaida != null && (Boolean)propSaida) {
+                        objetosSaida.add(polyFisica);
                     }
                 }
             }
@@ -366,7 +383,7 @@ public class GameScreen implements Screen {
         Vector2 posicaoInicial = new Vector2(22f, -80f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
-        Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
+        Vector2 posicaoInicialBoss = new Vector2(80f, -20f);
         boss = new Boss(posicaoInicialBoss, game.assets);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
@@ -470,6 +487,16 @@ public class GameScreen implements Screen {
             mostrandoMensagemMagica = !mostrandoMensagemMagica;
         }
 
+        // Aciona o final do jogo
+        if (pertoDaSaida && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            if (!iniciandoFimDeJogo) {
+                iniciandoFimDeJogo = true;
+                // Para todas as músicas rodando para dar aquele silêncio dramático no fade
+                if (musicaFundo != null) musicaFundo.stop();
+                if (musicaBoss != null) musicaBoss.stop();
+            }
+        }
+
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
@@ -522,20 +549,46 @@ public class GameScreen implements Screen {
         }
         // --- FIM DA CUTSCENE ---
 
-        // --- SISTEMA DE INTERAÇÃO ---
-        pertoDoCristal = false;
+        // --- SISTEMA DE INTERAÇÃO (Gatilhos) ---
+        float interacaoCentroX = player.hitbox.x + (player.hitbox.width / 2f);
+        float interacaoCentroY = player.hitbox.y + (player.hitbox.height / 2f);
 
-        for (Vector2 posCristal : cristaisInterativos) {
-            // Se o jogador estiver a menos de 2 blocos de distância do cristal
-            if (player.posicaoMundo.dst(posCristal) < 2.0f) {
+        float margemInteracao = 3f;
+
+        // Verifica interação do Cristal
+        pertoDoCristal = false;
+        for (Polygon polyCristal : cristaisInterativos) {
+            Rectangle bounds = polyCristal.getBoundingRectangle();
+
+            if (interacaoCentroX >= bounds.x - margemInteracao &&
+                interacaoCentroX <= bounds.x + bounds.width + margemInteracao &&
+                interacaoCentroY >= bounds.y - margemInteracao &&
+                interacaoCentroY <= bounds.y + bounds.height + margemInteracao) {
+
                 pertoDoCristal = true;
                 break;
             }
         }
 
-        // Se o jogador se afastar, fecha a mensagem automaticamente
         if (!pertoDoCristal) {
             mostrandoMensagemMagica = false;
+        }
+
+        // Verifica interação da Saída
+        pertoDaSaida = false;
+        if (boss != null && boss.isDead && !iniciandoMorte) {
+            for (Polygon polySaida : objetosSaida) {
+                Rectangle bounds = polySaida.getBoundingRectangle();
+
+                if (interacaoCentroX >= bounds.x - margemInteracao &&
+                    interacaoCentroX <= bounds.x + bounds.width + margemInteracao &&
+                    interacaoCentroY >= bounds.y - margemInteracao &&
+                    interacaoCentroY <= bounds.y + bounds.height + margemInteracao) {
+
+                    pertoDaSaida = true;
+                    break;
+                }
+            }
         }
         // -----------------------------
 
@@ -762,6 +815,14 @@ public class GameScreen implements Screen {
                 }
             }
         }
+        // Atualiza a lógica de tempo (delta) e desenha as partículas de cura por cima do player
+        if (!player.efeitoCura.isComplete()) {
+            player.efeitoCura.draw(batch, delta);
+        }
+        // Desenha a poeira/fogo do ataque do Boss (se o boss existir e a partícula estiver ativa)
+        if (boss != null && !boss.efeitoAtaque.isComplete()) {
+            boss.efeitoAtaque.draw(batch, delta);
+        }
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
@@ -945,7 +1006,12 @@ public class GameScreen implements Screen {
 
         if (pertoDoCristal && !mostrandoMensagemMagica) {
             font.setColor(Color.YELLOW);
-            font.draw(batch, "[E] Inspecionar", uiViewport.getWorldWidth() / 2f - 80f, 200f);
+            font.draw(batch, "(E) Inspecionar", uiViewport.getWorldWidth() / 2f - 80f, 200f);
+        }
+
+        if (pertoDaSaida && !iniciandoFimDeJogo) {
+            font.setColor(Color.YELLOW);
+            font.draw(batch, "(E) Inspecionar", uiViewport.getWorldWidth() / 2f - 80f, 200f);
         }
 
         if (mostrandoMensagemMagica) {
@@ -955,15 +1021,10 @@ public class GameScreen implements Screen {
             batch.draw(portraitAephorul, 60, 60, 320, 320);
 
             font.setColor(Color.FIREBRICK);
-            font.draw(batch, "Esse é apenas o início da sua jornada.", 420, 180);
+            font.draw(batch, "Esse e apenas o inicio da sua jornada...", 420, 180);
 
             font.setColor(Color.WHITE);
-            font.draw(batch, "O abismo aguarda seu retorno, herói...", 420, 120);
-
-            font.draw(batch, "Desenvolvedores:", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 200);
-            font.draw(batch, "Matheus Dall olmo", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 160);
-            font.draw(batch, "Pablo Gabriel Sustisso ", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 120);
-            font.draw(batch, "Samuel Grontoski", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 80);
+            font.draw(batch, "O abismo aguarda seu retorno, heroi...", 420, 120);
         }
 
         if (mostrarDebugInfo) {
@@ -1102,6 +1163,21 @@ public class GameScreen implements Screen {
                     game.setScreen(new TelaMorte(game));
                     dispose();
                 }
+            }
+        }
+
+        // Efeito de Fade Out ao finalizar o jogo ---
+        if (iniciandoFimDeJogo) {
+            alphaFim += delta * 1.0f;
+
+            game.batch.setColor(0f, 0f, 0f, Math.min(alphaFim, 1f));
+            game.batch.draw(pixelPretoTransicao, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
+            game.batch.setColor(Color.WHITE);
+
+            // Quando a tela estiver toda preta, muda para a tela de Créditos
+            if (alphaFim >= 1.05f) {
+                game.setScreen(new TelaCreditos(game));
+                dispose();
             }
         }
 
