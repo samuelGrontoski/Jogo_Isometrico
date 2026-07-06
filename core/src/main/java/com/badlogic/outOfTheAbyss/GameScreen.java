@@ -108,10 +108,13 @@ public class GameScreen implements Screen {
     private final Vector2[] posicoesSpawnMorcegos = new Vector2[] {
         new Vector2(30f, -49f),
         new Vector2(30f, -42f),
-        new Vector2(26f, -42f)
+        new Vector2(26f, -42f),
+        new Vector2(62f, -65f),
+        new Vector2(59f, -52f),
+        new Vector2(54f, -67f)
     };
-    private final float[] timersSpawnMorcegos = new float[3]; // Cronômetros de 60s
-    private final Morcego[] morcegosNosSpawns = new Morcego[3]; // Guarda a referência de quem está vivo
+    private final float[] timersSpawnMorcegos = new float[posicoesSpawnMorcegos.length];
+    private final Morcego[] morcegosNosSpawns = new Morcego[posicoesSpawnMorcegos.length];
     private final float TEMPO_RESPAWN_MORCEGO = 60.0f; // 60 segundos
     private final Texture textureMorcegoFly;
 
@@ -360,7 +363,7 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(60f, -58f);
+        Vector2 posicaoInicial = new Vector2(22f, -80f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
