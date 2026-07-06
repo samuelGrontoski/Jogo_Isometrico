@@ -18,6 +18,7 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFont
 public class JogoIsometrico extends Game {
     public SpriteBatch batch;
     public BitmapFont font;
+    public BitmapFont fontMorte;
     public FitViewport viewport;
     public AssetManager assets;
 
@@ -26,27 +27,30 @@ public class JogoIsometrico extends Game {
         batch = new SpriteBatch();
         viewport = new FitViewport(640, 360);
 
-        // --- INÍCIO DA CRIAÇÃO DA FONTE TTF ---
-
-        // 1. Aponta para o arquivo .ttf na sua pasta assets
+        // --- INÍCIO DA CRIAÇÃO DAS FONTES TTF ---
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fontes/GeistPixel-Regular-VariableFont_ELSH.ttf"));
         FreeTypeFontParameter parameter = new FreeTypeFontParameter();
-
-        // 2. Parâmetros de customização da fonte
-        parameter.size = 24; // Tamanho em pixels (ajuste para ficar bonito no seu Viewport)
+        parameter.size = 24;
         parameter.color = Color.WHITE;
-        parameter.borderWidth = 1; // Cria uma bordinha preta leve ao redor das letras para facilitar a leitura
+        parameter.borderWidth = 1;
         parameter.borderColor = Color.BLACK;
         parameter.minFilter = Texture.TextureFilter.Nearest;
-        parameter.magFilter = Texture.TextureFilter.Nearest; // Mantém o estilo "Pixel Art" crocante da sua fonte
-
-        // 3. O gerador desenha o mapa na RAM e cria a BitmapFont pronta para uso
+        parameter.magFilter = Texture.TextureFilter.Nearest;
         font = generator.generateFont(parameter);
-
-        // 4. Libera a fábrica da memória RAM (OBRIGATÓRIO PARA EVITAR MEMORY LEAK)
         generator.dispose();
 
-        // --- FIM DA CRIAÇÃO DA FONTE ---
+        // NOVO: Fonte antiquity-print
+        FreeTypeFontGenerator generatorMorte = new FreeTypeFontGenerator(Gdx.files.internal("fontes/antiquity-print.ttf"));
+        FreeTypeFontParameter parameterMorte = new FreeTypeFontParameter();
+        parameterMorte.size = 48;
+        parameterMorte.color = Color.RED;
+        parameterMorte.borderWidth = 2;
+        parameterMorte.borderColor = Color.BLACK;
+        parameterMorte.minFilter = Texture.TextureFilter.Nearest;
+        parameterMorte.magFilter = Texture.TextureFilter.Nearest;
+        fontMorte = generatorMorte.generateFont(parameterMorte);
+        generatorMorte.dispose();
+        // --- FIM DA CRIAÇÃO DAS FONTES ---
 
         assets = new AssetManager();
         assets.setLoader(TiledMap.class, new TmxMapLoader());
@@ -75,6 +79,7 @@ public class JogoIsometrico extends Game {
         assets.load("sons/Go Down.wav", Music.class);
         assets.load("sons/Boss_music.mp3", Music.class);
         assets.load("sons/Boss_Die.mp3", Sound.class);
+        assets.load("sons/Die.mp3", Sound.class);
 
         // Player
         assets.load("personagem/Idle.png", Texture.class);
@@ -126,6 +131,7 @@ public class JogoIsometrico extends Game {
     public void dispose() {
         batch.dispose();
         font.dispose();
+        fontMorte.dispose();
         assets.dispose();
     }
 }
