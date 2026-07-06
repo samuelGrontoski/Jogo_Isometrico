@@ -15,14 +15,14 @@ public class TeiaProjetil implements  Poolable{
     private float velocidade = 12f;
 
     public boolean voando = true;
-    public boolean finalizada = false; // true quando sumir totalmente
+    public boolean finalizada = false;
 
     public Rectangle hitbox;
 
     private Vector2 posicaoInicial;
-    public float distanciaMaxima = 15f; // Quantos blocos a teia voa antes de cair (ajuste como quiser)
+    public float distanciaMaxima = 15f;
     private float tempoNoChao = 0f;
-    private final float TEMPO_DURACAO_TEIA = 4.0f; // Quanto tempo a teia fica no chão
+    private final float TEMPO_DURACAO_TEIA = 4.0f;
 
     // Animações
     private Animation<TextureRegion> animacaoVoando;
@@ -64,7 +64,6 @@ public class TeiaProjetil implements  Poolable{
 
             hitbox.setPosition(posicaoMundo.x, posicaoMundo.y);
 
-            // --- NOVA LÓGICA DE COLISÃO COM O MAPA ---
             if (hitboxesMapa != null) {
                 for (Rectangle parede : hitboxesMapa) {
                     if (this.hitbox.overlaps(parede)) {
@@ -84,7 +83,7 @@ public class TeiaProjetil implements  Poolable{
 
             // Verifica se chegou perto do alvo
             if (posicaoMundo.dst(posicaoInicial) >= distanciaMaxima) {
-                voando = false; // Acabou o fôlego, caiu no chão!
+                voando = false;
                 stateTime = 0f;
             }
         } else {
@@ -92,7 +91,7 @@ public class TeiaProjetil implements  Poolable{
             this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 3f, 3f);
             tempoNoChao += delta;
             if (tempoNoChao >= TEMPO_DURACAO_TEIA) {
-                finalizada = true; // Tempo acabou, avisa pra remover
+                finalizada = true;
             }
         }
     }

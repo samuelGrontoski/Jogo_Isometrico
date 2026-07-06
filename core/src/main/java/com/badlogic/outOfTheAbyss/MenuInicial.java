@@ -56,7 +56,6 @@ public class MenuInicial implements Screen {
         musicaFundo.setVolume(volumeBase);
         musicaFundo.play();
 
-        // Obtém referências das texturas já decodificadas da RAM
         backgroundTexture = game.assets.get("background/tela-menu.png", Texture.class);
         playButtonTexture = game.assets.get("botao/botao_jogar.png", Texture.class);
         exitButtonTexture = game.assets.get("botao/botao_sair.png", Texture.class);
@@ -131,7 +130,6 @@ public class MenuInicial implements Screen {
             }
         });
 
-        // Posicionamento elástico em Tabela (similar ao uso de Grid/Flex na Web)
         Table table = new Table();
         table.setFillParent(true);
         table.left().padLeft(16);
@@ -158,7 +156,6 @@ public class MenuInicial implements Screen {
 
     @Override
     public void show() {
-        // Entrega o processamento de cliques ao Stage
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -179,7 +176,7 @@ public class MenuInicial implements Screen {
 
         // DESENHA A CORTINA PRETA POR CIMA DE TUDO (EFEITO FADE OUT)
         if (iniciandoTransicao) {
-            // 1. Limita o tempo do frame para evitar que o engasgo do PC pule a animação
+            // Limita o tempo do frame para evitar que o engasgo do PC pule a animação
             if (delta > 0.05f) delta = 0.05f;
 
             transicaoAlpha += delta * VELOCIDADE_FADE;
@@ -189,19 +186,17 @@ public class MenuInicial implements Screen {
             float volumeAtual = volumeBase * (1f - Math.min(transicaoAlpha, 1f));
             musicaFundo.setVolume(volumeAtual);
 
-            // 2. Garante explicitamente a ativação do Alpha (Pois o Stage pode ter desativado)
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-            // 3. Desenha o fundo preto PRIMEIRO
+            // Desenha o fundo preto PRIMEIRO
             game.batch.begin();
             game.batch.setColor(1f, 1f, 1f, Math.min(transicaoAlpha, 1f));
-            // Desenhamos gigante para garantir que frestas não fiquem visíveis caso o jogador mude a resolução
             game.batch.draw(pixelPreto, -200, -200, 2000, 2000);
             game.batch.setColor(Color.WHITE); // Limpa a cor do batch
             game.batch.end();
 
-            // 4. SÓ MUDA DE TELA após exibir a tela totalmente preta (e com uma sobrinha de tempo para os olhos)
+            // SÓ MUDA DE TELA após exibir a tela totalmente preta
             if (transicaoAlpha >= 1.05f) {
                 musicaFundo.stop();
                 game.setScreen(new TelaCarregamento(game));

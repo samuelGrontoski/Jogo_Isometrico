@@ -3,8 +3,6 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 
-// Padrão Event-Driven. Lê os callbacks do mouse/teclado de forma isolada,
-// mitigando bugs da técnica de "polling" via loop update.
 public class PlayerController implements InputProcessor {
     public boolean up, down, left, right;
     public boolean shiftPressed;
@@ -96,7 +94,7 @@ public class PlayerController implements InputProcessor {
         return false;
     }
 
-    // --- CONSUMO DE GATILHOS (Devem ser lidos pelas lógicas via query) ---
+    // --- CONSUMO DE GATILHOS ---
     public boolean consumeRoll() {
         if (rollTriggered) {
             rollTriggered = false;
