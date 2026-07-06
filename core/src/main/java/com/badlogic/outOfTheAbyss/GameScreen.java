@@ -105,8 +105,14 @@ public class GameScreen implements Screen {
         protected Morcego newObject() { return new Morcego(); }
     };
     Array<Morcego> morcegos = new Array<>();
-    private float timerRespawnMorcego = 0f;
-    private final int max_morcegos_no_mapa = 0;
+    private final Vector2[] posicoesSpawnMorcegos = new Vector2[] {
+        new Vector2(30f, -49f),
+        new Vector2(30f, -42f),
+        new Vector2(26f, -42f)
+    };
+    private final float[] timersSpawnMorcegos = new float[3]; // Cronômetros de 60s
+    private final Morcego[] morcegosNosSpawns = new Morcego[3]; // Guarda a referência de quem está vivo
+    private final float TEMPO_RESPAWN_MORCEGO = 60.0f; // 60 segundos
     private final Texture textureMorcegoFly;
 
     Array<ObjetoRenderizavel> elementosMapaRenderizaveis = new Array<>();
@@ -361,8 +367,8 @@ public class GameScreen implements Screen {
         boss = new Boss(posicaoInicialBoss, game.assets);
 
         textureMorcegoFly = game.assets.get("inimigos/morcego/morcego_fly.png", Texture.class);
-        for (int i = 0; i < max_morcegos_no_mapa; i++) {
-            gerarMorcegoAleatorio();
+        for (int i = 0; i < posicoesSpawnMorcegos.length; i++) {
+            spawnarMorcegoNoIndice(i);
         }
 
         portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
@@ -599,23 +605,45 @@ public class GameScreen implements Screen {
         screenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
         screenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
 
-        if (morcegos.size < max_morcegos_no_mapa) {
-            timerRespawnMorcego += delta;
-            float tempo_respawn_morcego = 3.0f;
-            if (timerRespawnMorcego >= tempo_respawn_morcego) {
-                gerarMorcegoAleatorio();
-                timerRespawnMorcego -= tempo_respawn_morcego;
+        // --- LÓGICA DE RESPAWN DOS MORCEGOS (60 segundos) ---
+        for (int i = 0; i < posicoesSpawnMorcegos.length; i++) {
+            Morcego m = morcegosNosSpawns[i];
+
+            // Se não há morcego neste spawn, ou se o morcego que estava lá morreu (isAtivo = false)
+            if (m == null || !m.isAtivo) {
+                // Limpa a referência se ele acabou de morrer
+                morcegosNosSpawns[i] = null;
+
+                // Conta o tempo
+                timersSpawnMorcegos[i] += delta;
+
+                // Revive o morcego ao chegar em 60 segundos
+                if (timersSpawnMorcegos[i] >= TEMPO_RESPAWN_MORCEGO) {
+                    spawnarMorcegoNoIndice(i);
+                }
             }
         }
 
+        // --- ATUALIZAÇÃO E REMOÇÃO DOS MORCEGOS (Mantém o Object Pooling) ---
         for (int i = morcegos.size - 1; i >= 0; i--) {
             Morcego morcego = morcegos.get(i);
+
             if (!morcego.isAtivo) {
                 morcegos.removeIndex(i);
-                morcegoPool.free(morcego);
+                morcegoPool.free(morcego); // Devolve para a Pool limpinho!
                 continue;
             }
+
             morcego.update(delta, player.posicaoMundo, morcegos, limiteMapaX, limiteMapaY);
+
+            // --- APLICA O DANO AO PLAYER ---
+            if (morcego.hitboxColisao.overlaps(player.hitbox)) {
+                // Só bate se o cooldown do morcego já recarregou
+                if (morcego.attackCooldown >= morcego.tempo_recarga_ataque) {
+                    player.tomarDano(1);
+                    morcego.attackCooldown = 0f; // Reseta o ataque DESSSE morcego
+                }
+            }
         }
 
         float offsetCameraY = viewport_height / 4f;
@@ -1077,12 +1105,19 @@ public class GameScreen implements Screen {
         batch.end();
     }
 
-    private void gerarMorcegoAleatorio() {
-        float px = MathUtils.random(2f, limiteMapaY - 2f);
-        float py = MathUtils.random(-limiteMapaX + 2f, -2f);
+    private void spawnarMorcegoNoIndice(int index) {
+        // Puxa da sua Pool (reaproveitamento de memória)
         Morcego m = morcegoPool.obtain();
-        m.init(new Vector2(px, py), textureMorcegoFly);
+
+        // Inicia o morcego na coordenada específica do índice
+        m.init(new Vector2(posicoesSpawnMorcegos[index].x, posicoesSpawnMorcegos[index].y), textureMorcegoFly);
+
+        // Adiciona na lista principal de renderização/lógica
         morcegos.add(m);
+
+        // Salva a referência para sabermos que este ponto de spawn está ocupado
+        morcegosNosSpawns[index] = m;
+        timersSpawnMorcegos[index] = 0f; // Reseta o cronômetro
     }
 
     private void fecharPortaBoss() {
