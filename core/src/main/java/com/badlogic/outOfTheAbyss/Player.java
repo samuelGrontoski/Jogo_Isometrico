@@ -37,6 +37,10 @@ public class Player {
     public boolean estaCurando = false;
     public float healTimer = 0f;
     public final float duracaoHeal = 0.7f;
+    public int curasAtuais = 2;
+    public final int maxCuras = 2;
+    public float cooldownCuraTimer = 20f; // Já começa em 20s para o primeiro uso ser imediato
+    public final float tempoRecargaCura = 20f;
 
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
@@ -140,6 +144,9 @@ public class Player {
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;
         }
+        if (cooldownCuraTimer < tempoRecargaCura) {
+            cooldownCuraTimer += delta;
+        }
         inputDirecao.set(0, 0);
 
         if (!estaAtacando && !estaAtacandoPesado && !estaRolando && !estaCurando) {
@@ -150,7 +157,7 @@ public class Player {
             iniciarRoll();
         }
 
-        if (controller.consumeHeal() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando) {
+        if (controller.consumeHeal() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && curasAtuais > 0 && cooldownCuraTimer >= tempoRecargaCura) {
             iniciarHeal();
         }
 
@@ -162,6 +169,8 @@ public class Player {
             estaCorrendo = false;
             estaAgachado = false;
             if (healTimer >= duracaoHeal) estaCurando = false;
+            inputDirecao.set(0, 0);
+            estaEmMovimento = false;
 
         } else if (estaRolando) {
             rollTimer += delta;
@@ -232,6 +241,8 @@ public class Player {
     private void iniciarHeal() {
         estaCurando = true;
         healTimer = 0f;
+        curasAtuais--;            // Gasta 1 carga
+        cooldownCuraTimer = 0f;   // Zera o timer forçando esperar 20s para o próximo
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {

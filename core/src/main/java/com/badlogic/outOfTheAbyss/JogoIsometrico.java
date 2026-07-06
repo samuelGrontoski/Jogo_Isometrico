@@ -105,8 +105,15 @@ public class JogoIsometrico extends Game {
         // Interface/Skills
         assets.load("skills/ataque_leve_icon.png", Texture.class);
         assets.load("skills/ataque_pesado_icon.png", Texture.class);
+        assets.load("skills/corrida_icon.png", Texture.class);
+        assets.load("skills/cura_icon.png", Texture.class);
         assets.load("skills/dash_icon.png", Texture.class);
+        assets.load("skills/espaco_icon.png", Texture.class);
         assets.load("skills/frame_icon.png", Texture.class);
+        assets.load("skills/mouse_dir_icon.png", Texture.class);
+        assets.load("skills/mouse_esq_icon.png", Texture.class);
+        assets.load("skills/shift_icon.png", Texture.class);
+        assets.load("skills/tecla1_icon.png", Texture.class);
     }
 
     @Override
