@@ -15,13 +15,12 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.MapLayer;
+import com.badlogic.gdx.maps.MapObject;
+import com.badlogic.gdx.maps.objects.PolygonMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
-import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -82,6 +81,7 @@ public class GameScreen implements Screen {
     private Texture uiFrame;
     private Texture uiSombraCooldown;
 
+    // --- LUZ E FOG ---
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
     Texture lightBrush;
@@ -112,7 +112,12 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
+    // --- VARIÁVEIS DA MÚSICA E GATILHOS ---
     private Music musicaFundo;
+    private Music musicaBoss;
+    private float volumeFundo = 1.0f;
+    private float volumeBoss = 0f;
+    Array<Polygon> gatilhosMusicaBoss = new Array<>();
 
     Boss boss;
 
@@ -131,10 +136,15 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
+        // INICIALIZAÇÃO DOS ÁUDIOS
         musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
         musicaFundo.setLooping(true);
-        musicaFundo.setVolume(1.2f);
+        musicaFundo.setVolume(volumeFundo);
         musicaFundo.play();
+
+        musicaBoss = game.assets.get("sons/Boss_music.mp3", Music.class);
+        musicaBoss.setLooping(true);
+        musicaBoss.setVolume(volumeBoss);
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
@@ -254,6 +264,40 @@ public class GameScreen implements Screen {
             }
         }
 
+        MapLayer layerGatilhos = mapaTiled.getLayers().get("Gatilhos");
+        if (layerGatilhos != null) {
+            for (MapObject objeto : layerGatilhos.getObjects()) {
+                // AGORA LÊ POLÍGONOS!
+                if (objeto instanceof PolygonMapObject) {
+                    Object propMusica = objeto.getProperties().get("musica");
+                    // Proteção caso tenha escrito com 'M' maiúsculo no Tiled
+                    if (propMusica == null) propMusica = objeto.getProperties().get("Musica");
+
+                    if (propMusica != null && "boss".equalsIgnoreCase(propMusica.toString().trim())) {
+                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
+
+                        // Pega os pontos do polígono já convertidos para o ponto x,y dele no Tiled
+                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
+                        float[] verticesFisica = new float[verticesTiled.length];
+
+                        // Converte cada ponto do polígono para a nossa matemática física!
+                        for (int i = 0; i < verticesTiled.length; i += 2) {
+                            float pX = verticesTiled[i];
+                            float pY = verticesTiled[i + 1];
+
+                            float tX = pX / tile_height;
+                            float tY = pY / tile_height;
+
+                            verticesFisica[i] = tY;        // worldX = TiledY
+                            verticesFisica[i + 1] = -tX;   // worldY = -TiledX
+                        }
+
+                        gatilhosMusicaBoss.add(new Polygon(verticesFisica));
+                    }
+                }
+            }
+        }
+
         lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
         lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
         lightBufferRegion.flip(false, true);
@@ -366,6 +410,40 @@ public class GameScreen implements Screen {
             mostrandoMensagemMagica = false;
         }
         // -----------------------------
+
+        // --- SISTEMA DE CROSSFADE DA MÚSICA ---
+        boolean naSalaDoBoss = false;
+        float centroX = player.hitbox.x + (player.hitbox.width / 2f);
+        float centroY = player.hitbox.y + (player.hitbox.height / 2f);
+
+        for (Polygon gatilho : gatilhosMusicaBoss) {
+            if (gatilho.contains(centroX, centroY)) {
+                naSalaDoBoss = true;
+                break;
+            }
+        }
+
+        float velocidadeFade = 1.0f * delta; // Velocidade da transição (1 segundo para trocar)
+
+        if (naSalaDoBoss) {
+            if (!musicaBoss.isPlaying()) musicaBoss.play();
+            // Aumenta o Boss, diminui a Caverna (Limitado em 1.0f)
+            volumeBoss = Math.min(0.1f, volumeBoss + velocidadeFade);
+            volumeFundo = Math.max(0f, volumeFundo - velocidadeFade);
+        } else {
+            if (!musicaFundo.isPlaying()) musicaFundo.play();
+            // Aumenta a Caverna, diminui o Boss (Limitado em 1.0f)
+            volumeFundo = Math.min(1.0f, volumeFundo + velocidadeFade);
+            volumeBoss = Math.max(0f, volumeBoss - velocidadeFade);
+        }
+
+        musicaFundo.setVolume(volumeFundo);
+        musicaBoss.setVolume(volumeBoss);
+
+        // Pausa a música que ficou totalmente muda para economizar CPU
+        if (volumeFundo <= 0f && musicaFundo.isPlaying()) musicaFundo.pause();
+        if (volumeBoss <= 0f && musicaBoss.isPlaying()) musicaBoss.pause();
+        // ----------------------------------------
 
         player.atualizarLogicaAtaque(delta, morcegos);
 
@@ -590,6 +668,23 @@ public class GameScreen implements Screen {
             shapeRenderer.setColor(Color.MAGENTA);
             for (Rectangle mapRect : hitboxesMapa) {
                 desenharRetanguloIsometrico(mapRect, shapeRenderer);
+            }
+
+            shapeRenderer.setColor(Color.CYAN);
+            for (Polygon gatilho : gatilhosMusicaBoss) {
+                float[] vFisica = gatilho.getVertices();
+                float[] vTela = new float[vFisica.length];
+
+                // Transforma cada ponto físico num ponto isométrico na tela
+                for (int i = 0; i < vFisica.length; i += 2) {
+                    float px = vFisica[i];
+                    float py = vFisica[i+1];
+
+                    vTela[i] = (px - py) * (tile_width / 2f);
+                    vTela[i+1] = -(px + py) * (tile_height / 2f);
+                }
+
+                shapeRenderer.polygon(vTela);
             }
 
             shapeRenderer.setColor(Color.RED);
@@ -840,6 +935,7 @@ public class GameScreen implements Screen {
         pixelPreto.dispose();
         portraitAephorul.dispose();
         musicaFundo.stop();
+        musicaBoss.stop();
         if (uiSombraCooldown != null) uiSombraCooldown.dispose();
     }
 }

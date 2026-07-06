@@ -73,6 +73,7 @@ public class JogoIsometrico extends Game {
 
         // Sons
         assets.load("sons/Go Down.wav", Music.class);
+        assets.load("sons/Boss_music.mp3", Music.class);
 
         // Player
         assets.load("personagem/Idle.png", Texture.class);
