@@ -659,6 +659,10 @@ public class GameScreen implements Screen {
                 }
             }
         }
+        // Atualiza a lógica de tempo (delta) e desenha as partículas de cura por cima do player
+        if (!player.efeitoCura.isComplete()) {
+            player.efeitoCura.draw(batch, delta);
+        }
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 

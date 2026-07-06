@@ -4,6 +4,7 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -47,13 +48,14 @@ public class Player {
     private boolean danoPesadoAplicado = false;
 
     // --- STATUS DA CURA ---
+    public ParticleEffect efeitoCura;
     public boolean estaCurando = false;
     public float healTimer = 0f;
     public final float duracaoHeal = 0.7f;
     public int curasAtuais = 2;
     public final int maxCuras = 2;
     public float cooldownCuraTimer = 2f; // Já começa em 20s para o primeiro uso ser imediato
-    public final float tempoRecargaCura = 20f;
+    public final float tempoRecargaCura = 2f;
 
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
@@ -102,6 +104,10 @@ public class Player {
         this.somAtaque = assets.get("sons/ataque_espada.wav", Sound.class);
         this.somCura = assets.get("sons/cura.mp3", Sound.class);
         this.somPassos = assets.get("sons/passos.wav", Sound.class);
+        // Pega a base da partícula e cria uma cópia para o player usar
+        ParticleEffect baseEffect = assets.get("particulas/cura.p", ParticleEffect.class);
+        this.efeitoCura = new ParticleEffect(baseEffect);
+        this.efeitoCura.scaleEffect(0.35f);
 
         carregarAnimacoes(assets);
         atualizarHitbox();
@@ -279,10 +285,12 @@ public class Player {
         curasAtuais--;
         cooldownCuraTimer = 0f;
         somCura.play(0.5f);
+
         vida++;
         if (vida > vidaMaxima) {
             vida = vidaMaxima;
         }
+        efeitoCura.start();
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
@@ -527,6 +535,11 @@ public class Player {
         renderObj.drawX = screenX - renderObj.originX;
         renderObj.drawY = screenY;
         renderObj.sortY = screenY;
+
+        // Centraliza a partícula no meio do player (ajuste o + 16f para subir/descer a origem da partícula)
+        if (!efeitoCura.isComplete()) {
+            efeitoCura.setPosition(screenX, screenY + 32f);
+        }
     }
 
     private void atualizarHitbox() {

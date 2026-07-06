@@ -65,7 +65,7 @@ public class Boss {
     public float attackCooldown = 0.7f;
 
     // Ataque de Teia
-    public float rangedAttackRange = 25f;
+    public float rangedAttackRange = 15f;
     private float timerCooldownRanged = 0f;
     private final float COOLDOWN_RANGED = 3.0f;
 
