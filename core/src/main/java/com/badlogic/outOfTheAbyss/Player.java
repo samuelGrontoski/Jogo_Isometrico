@@ -48,14 +48,13 @@ public class Player {
     // Variaveis de esquiva
     public boolean estaRolando = false;
     public float rollTimer = 0f;
-    public final float duracaoRoll = 0.6f;
-    public float cooldownRollTimer = 0.6f;
+    public final float duracaoRoll = 0.5f;
+    public float cooldownRollTimer = 0.5f;
     public final float tempoRecargaRoll = 1.5f;
     public Vector2 direcaoRoll = new Vector2();
 
     float stateTime;
 
-    // Dicionários para guardar as 8 direções de cada estado
     Map<String, Animation<TextureRegion>> idleAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> walkAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> runAnimations = new HashMap<>();
@@ -93,8 +92,8 @@ public class Player {
         Texture attackPesadoSheet = assets.get("personagem/Melee2.png", Texture.class);
         Texture healSheet = assets.get("personagem/Heal.png", Texture.class);
 
-        int cols = 15; // 15 frames por animação
-        int rows = 8;  // 8 direções
+        int cols = 15;
+        int rows = 8;
 
         idleAnimations = criarAnimacao(idleSheet, cols, rows, 0.1f, Animation.PlayMode.LOOP);
         walkAnimations = criarAnimacao(walkSheet, cols, rows, 0.08f, Animation.PlayMode.LOOP);
@@ -107,7 +106,6 @@ public class Player {
         healAnimations = criarAnimacao(healSheet, cols, rows, duracaoHeal / cols, Animation.PlayMode.NORMAL);
     }
 
-    // Função universal que mapeia qualquer Spritesheet padronizado e devolve o Dicionário pronto
     private Map<String, Animation<TextureRegion>> criarAnimacao(Texture sheet, int cols, int rows, float frameDuration, Animation.PlayMode mode) {
         Map<String, Animation<TextureRegion>> mapaAnimacoes = new HashMap<>();
         String[] direcoesOrdem = {"E", "SE", "S", "SW", "W", "NW", "N", "NE"};
@@ -146,7 +144,6 @@ public class Player {
 
         float velocidadeAtual = velocidadeBase;
 
-        // --- MÁQUINA DE ESTADO ---
         if (estaCurando) {
             healTimer += delta;
             velocidadeAtual = 0f;
@@ -182,7 +179,6 @@ public class Player {
 
         verificarAtaque(mouseMundoX, mouseMundoY);
 
-        // Repasse o hitboxBoss para a função de movimento
         aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
@@ -233,11 +229,9 @@ public class Player {
             attackTimer = 0f;
             danoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
             float alcanceLeve = 2.0f;
@@ -260,14 +254,12 @@ public class Player {
             attackPesadoTimer = 0f;
             danoPesadoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
-            float alcancePesado = 2.0f; // Ataque pesado precisa ir mais longe para ficar fora da hitbox
+            float alcancePesado = 2.0f;
             float larguraHitboxPesado = 2.4f;
             float alturaHitboxPesado = 2.4f;
 
@@ -283,7 +275,6 @@ public class Player {
         }
     }
 
-    // Mira usada nos ataques leve e pesado
     private Vector2 getVector2(float mouseMundoX, float mouseMundoY, float origemX, float origemY) {
         float tileW = 32f;
         float tileH = 16f;
@@ -292,7 +283,6 @@ public class Player {
         float mouseCartesianX = (a + b) / 2f;
         float mouseCartesianY = (b - a) / 2f;
 
-        // O ângulo agora leva em consideração a verdadeira origem do corpo do jogador
         float deltaX = mouseCartesianX - origemX;
         float deltaY = mouseCartesianY - origemY;
 
@@ -328,24 +318,19 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            // Agora verifica colisão geral (mapa + boss)
             if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            // Agora verifica colisão geral (mapa + boss)
             if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.y = oldY;
         }
     }
 
     private boolean verificaColisoes(Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
-        // 1. Verifica colisão com as paredes/mapa
         for (Rectangle rect : hitboxesMapa) {
             if (hitbox.overlaps(rect)) return true;
         }
 
-        // 2. Verifica colisão com o corpo do boss
-        // (A checagem != null previne crash caso o boss ainda não tenha spawnado ou já tenha morrido)
         if (hitboxBoss != null && hitbox.overlaps(hitboxBoss)) {
             return true;
         }
@@ -353,29 +338,39 @@ public class Player {
         return false;
     }
 
-    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos) {
+    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos, Boss boss) {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
+        // Ataque Leve
         if (estaAtacando && !danoAplicado) {
+            // Dano nos Morcegos
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
                     morcego.tomarDano();
                 }
             }
+            // Dano no Boss (1 de Dano)
+            if (boss != null && !boss.isDead && hitboxAtaque.overlaps(boss.hitbox)) {
+                boss.tomarDano(1);
+            }
             danoAplicado = true;
         }
 
-        // Ataque pesado
         if (attackPesadoTimer < tempoRecargaAtaquePesado) attackPesadoTimer += delta;
         if (attackPesadoTimer >= duracaoAtaquePesado) estaAtacandoPesado = false;
 
+        // Ataque Pesado
         if (estaAtacandoPesado && !danoPesadoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaquePesado.overlaps(morcego.hitboxColisao)) {
-                    morcego.tomarDano(); // Aplique x2 caso queira dar o dobro de dano
+                    morcego.tomarDano();
                     morcego.tomarDano();
                 }
+            }
+            // Dano no Boss (2 de Dano)
+            if (boss != null && !boss.isDead && hitboxAtaquePesado.overlaps(boss.hitbox)) {
+                boss.tomarDano(2);
             }
             danoPesadoAplicado = true;
         }
@@ -385,7 +380,6 @@ public class Player {
         stateTime += delta;
         TextureRegion currentFrame;
 
-        // PRIORIDADE DE RENDERIZAÇÃO
         if (estaCurando) {
             Animation<TextureRegion> anim = healAnimations.get(direcaoAtual);
             if (anim == null) anim = healAnimations.get("SE");
@@ -427,7 +421,6 @@ public class Player {
             currentFrame = animacaoIdleCerta.getKeyFrame(stateTime, true);
         }
 
-        // --- SISTEMA DE ESCALA VISUAL (80%) ---
         float escalaVisual = 0.8f;
 
         renderObj.textura = currentFrame;

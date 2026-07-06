@@ -74,6 +74,7 @@ public class JogoIsometrico extends Game {
         // Sons
         assets.load("sons/Go Down.wav", Music.class);
         assets.load("sons/Boss_music.mp3", Music.class);
+        assets.load("sons/Boss_Die.mp3", Sound.class);
 
         // Player
         assets.load("personagem/Idle.png", Texture.class);
@@ -97,6 +98,10 @@ public class JogoIsometrico extends Game {
         assets.load("boss/Attack2/Attack2_SW.png", Texture.class);
         assets.load("boss/Proyectile/Proyectile_SE.png", Texture.class);
         assets.load("boss/Proyectile/Proyectile_SW.png", Texture.class);
+        assets.load("boss/Death/Death_SE.png", Texture.class);
+        assets.load("boss/Death/Death_SW.png", Texture.class);
+
+        // Interface/Skills
         assets.load("skills/ataque_leve_icon.png", Texture.class);
         assets.load("skills/ataque_pesado_icon.png", Texture.class);
         assets.load("skills/dash_icon.png", Texture.class);
