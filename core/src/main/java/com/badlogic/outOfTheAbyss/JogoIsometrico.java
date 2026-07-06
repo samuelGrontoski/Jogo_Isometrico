@@ -74,8 +74,10 @@ public class JogoIsometrico extends Game {
     public void carregarAssetsJogo() {
         assets.load("mapa/map_cave.tmx", TiledMap.class);
         assets.load("inimigos/morcego/morcego_fly.png", Texture.class);
-
-        // Sons
+        assets.load("personagem/personagem_idle_se.png", Texture.class);
+        assets.load("personagem/personagem_idle_sw.png", Texture.class);
+        assets.load("personagem/personagem_run_se.png", Texture.class);
+        assets.load("personagem/personagem_run_sw.png", Texture.class);
         assets.load("sons/Go Down.wav", Music.class);
         assets.load("sons/Boss_music.mp3", Music.class);
         assets.load("sons/Boss_Die.mp3", Sound.class);
@@ -92,6 +94,10 @@ public class JogoIsometrico extends Game {
         assets.load("personagem/Melee2.png", Texture.class);
         assets.load("personagem/Heal.png", Texture.class);
         assets.load("personagem/Die.png", Texture.class);
+        assets.load("sons/ataque_espada.wav", Sound.class);
+        assets.load("sons/bater_na_porta.wav", Sound.class);
+        assets.load("sons/cura.mp3", Sound.class);
+        assets.load("sons/passos.wav", Sound.class);
         assets.load("personagem/Health_Bar.png", Texture.class);
 
         // Boss

@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 
 public class TeiaProjetil {
     public Vector2 posicaoMundo;
@@ -18,7 +19,7 @@ public class TeiaProjetil {
     public Rectangle hitbox;
 
     private Vector2 posicaoInicial;
-    public float distanciaMaxima = 15f; // Quantos blocos a teia voa antes de cair (ajuste como quiser)
+    public float distanciaMaxima = 25f; // Quantos blocos a teia voa antes de cair (ajuste como quiser)
     private float tempoNoChao = 0f;
     private final float TEMPO_DURACAO_TEIA = 4.0f; // Quanto tempo a teia fica no chão
 
@@ -36,7 +37,7 @@ public class TeiaProjetil {
         this.direcaoSprite = direcaoBoss;
 
         this.direcao = new Vector2(alvoMundo).sub(posicaoMundo).nor();
-        this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 3f, 3f);
+        this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 2f, 2f);
 
         // Recortando o SpriteSheet do projétil (4 frames)
         TextureRegion[][] tmp = TextureRegion.split(sheetTeia, sheetTeia.getWidth() / 4, sheetTeia.getHeight());
@@ -50,7 +51,7 @@ public class TeiaProjetil {
         teiaNoChao = tmp[0][3];
     }
 
-    public void update(float delta) {
+    public void update(float delta, Array<Rectangle> hitboxesMapa) {
         stateTime += delta;
 
         if (voando) {
@@ -60,6 +61,24 @@ public class TeiaProjetil {
 
             hitbox.setPosition(posicaoMundo.x, posicaoMundo.y);
 
+            // --- NOVA LÓGICA DE COLISÃO COM O MAPA ---
+            if (hitboxesMapa != null) {
+                for (Rectangle parede : hitboxesMapa) {
+                    if (this.hitbox.overlaps(parede)) {
+                        voando = false; // Bateu na parede, cai no chão instantaneamente
+                        stateTime = 0f;
+                        break; // Para a verificação assim que bater na primeira parede
+                    }
+                }
+            }
+
+            // --- LÓGICA DE DISTÂNCIA MÁXIMA ---
+            // Só verifica a distância se a teia AINDA estiver voando (ou seja, se não bateu na parede acima)
+            if (voando && posicaoMundo.dst(posicaoInicial) >= distanciaMaxima) {
+                voando = false; // Acabou o fôlego, caiu no chão!
+                stateTime = 0f;
+            }
+
             // Verifica se chegou perto do alvo
             if (posicaoMundo.dst(posicaoInicial) >= distanciaMaxima) {
                 voando = false; // Acabou o fôlego, caiu no chão!
@@ -67,6 +86,7 @@ public class TeiaProjetil {
             }
         } else {
             // Teia está no chão agindo como armadilha
+            this.hitbox = new Rectangle(posicaoMundo.x, posicaoMundo.y, 3f, 3f);
             tempoNoChao += delta;
             if (tempoNoChao >= TEMPO_DURACAO_TEIA) {
                 finalizada = true; // Tempo acabou, avisa pra remover
