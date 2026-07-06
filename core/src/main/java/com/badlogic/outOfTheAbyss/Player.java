@@ -1,6 +1,7 @@
 package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -13,6 +14,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Player {
+    // --- EFEITOS SONOROS ---
+    private Sound somAtaque;
+    private Sound somCura;
+    private Sound somPassos;
+
+    // --- CONTROLE DE PASSOS ---
+    private float stepTimer = 0f;
+    // Ajuste esses valores para sincronizar com os frames em que o pé do personagem toca o chão:
+    private float intervaloPassoAndando = 0.63f;
+    private float intervaloPassoCorrendo = 0.38f;
+    private float intervaloPassoAgachado = 0.63f;
+
     // --- STATUS DE VIDA ---
     public int vidaMaxima = 5;
     public int vida = vidaMaxima;
@@ -39,7 +52,7 @@ public class Player {
     public final float duracaoHeal = 0.7f;
     public int curasAtuais = 2;
     public final int maxCuras = 2;
-    public float cooldownCuraTimer = 20f; // Já começa em 20s para o primeiro uso ser imediato
+    public float cooldownCuraTimer = 2f; // Já começa em 20s para o primeiro uso ser imediato
     public final float tempoRecargaCura = 20f;
 
     public Rectangle hitbox;
@@ -86,6 +99,9 @@ public class Player {
         this.hitboxAtaquePesado = new Rectangle();
         this.renderObj = new ObjetoRenderizavel();
         this.controller = controller;
+        this.somAtaque = assets.get("sons/ataque_espada.wav", Sound.class);
+        this.somCura = assets.get("sons/cura.mp3", Sound.class);
+        this.somPassos = assets.get("sons/passos.wav", Sound.class);
 
         carregarAnimacoes(assets);
         atualizarHitbox();
@@ -202,6 +218,25 @@ public class Player {
         aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
+
+        if (estaEmMovimento && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando) {
+            stepTimer += delta;
+
+            // Define o intervalo dependendo do estado atual do player
+            float intervaloAtual = estaCorrendo ? intervaloPassoCorrendo : (estaAgachado ? intervaloPassoAgachado : intervaloPassoAndando);
+
+            // Quando o timer atinge o intervalo, toca o som e zera o timer
+            if (stepTimer >= intervaloAtual) {
+                // Toca os passos baixinho (ex: 20% do volume) para não irritar o jogador
+                somPassos.play(0.13f);
+                stepTimer = 0f;
+            }
+        } else {
+            // Forçamos o stepTimer para um valor alto quando o jogador está parado.
+            // Isso garante que, assim que ele apertar W, A, S ou D, o primeiro som de
+            // passo toque IMEDIATAMENTE (dando feedback de resposta instantânea).
+            stepTimer = 100f;
+        }
     }
 
     private void lerInputsController() {
@@ -243,6 +278,7 @@ public class Player {
         healTimer = 0f;
         curasAtuais--;            // Gasta 1 carga
         cooldownCuraTimer = 0f;   // Zera o timer forçando esperar 20s para o próximo
+        somCura.play(0.5f);
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
@@ -269,6 +305,8 @@ public class Player {
                 larguraHitboxLeve,
                 alturaHitboxLeve
             );
+
+            somAtaque.play(0.2f);
         }
 
         if (controller.consumeAttackPesado() && attackPesadoTimer >= tempoRecargaAtaquePesado && !estaRolando && !estaAtacando && !estaCurando) {
@@ -294,6 +332,8 @@ public class Player {
                 larguraHitboxPesado,
                 alturaHitboxPesado
             );
+
+            somAtaque.play(0.2f, 0.70f, 0f);
         }
     }
 

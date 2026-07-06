@@ -65,7 +65,7 @@ public class Boss {
     public float attackCooldown = 0.7f;
 
     // Ataque de Teia
-    public float rangedAttackRange = 12f;
+    public float rangedAttackRange = 25f;
     private float timerCooldownRanged = 0f;
     private final float COOLDOWN_RANGED = 3.0f;
 
@@ -236,7 +236,7 @@ public class Boss {
 
         for (int i = teiasAtivas.size - 1; i >= 0; i--) {
             TeiaProjetil teia = teiasAtivas.get(i);
-            teia.update(delta);
+            teia.update(delta, hitboxesMapa);
             if (teia.finalizada) {
                 teiasAtivas.removeIndex(i);
             }
