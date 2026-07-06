@@ -35,7 +35,7 @@ public class Player {
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
-    public String direcaoAtual = "SE";
+    public String direcaoAtual = "NW";
     public float velocidadeBase = 7.5f;
 
     // Controles de estado
@@ -54,7 +54,7 @@ public class Player {
     public final float duracaoHeal = 0.7f;
     public int curasAtuais = 2;
     public final int maxCuras = 2;
-    public float cooldownCuraTimer = 2f; // Já começa em 20s para o primeiro uso ser imediato
+    public float cooldownCuraTimer = 2f;
     public final float tempoRecargaCura = 2f;
 
     public Rectangle hitbox;
@@ -76,6 +76,10 @@ public class Player {
     public float cooldownRollTimer = 0.6f;
     public final float tempoRecargaRoll = 1.5f;
     public Vector2 direcaoRoll = new Vector2();
+
+    // Variaveis da cutscene ---
+    public boolean emCutscene = false;
+    public Vector2 destinoCutscene = new Vector2();
 
     float stateTime;
 
@@ -161,7 +165,54 @@ public class Player {
     }
 
     public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
-        if (isDead) return; // Se morto, ignora todos os inputs físicos (O ESC fica a cargo da GameScreen)
+        if (isDead) return;
+
+        if (emCutscene) {
+            // Força o cancelamento de qualquer ação (caso o player entre rolando ou atacando)
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaRolando = false;
+            estaCurando = false;
+
+            // Calcula a distância entre onde o player está e onde deve chegar
+            Vector2 direcao = new Vector2(destinoCutscene).sub(posicaoMundo);
+
+            // Se a distância for maior que 0.2 blocos (ainda não chegou)
+            if (direcao.len() > 0.2f) {
+                inputDirecao.set(direcao).nor(); // Aponta o joystick virtual para o destino
+                float moveSpeed = velocidadeBase * delta;
+                aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
+                estaEmMovimento = true;
+
+                // Atualiza a direção que a arte deve olhar matematicamente
+                float angle = MathUtils.atan2(inputDirecao.y, inputDirecao.x) * MathUtils.radiansToDegrees;
+                if (angle < 0) angle += 360f;
+                int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
+                switch (index) {
+                    case 0: direcaoAtual = "NE"; break;
+                    case 1: direcaoAtual = "N";  break;
+                    case 2: direcaoAtual = "NW"; break;
+                    case 3: direcaoAtual = "W";  break;
+                    case 4: direcaoAtual = "SW"; break;
+                    case 5: direcaoAtual = "S";  break;
+                    case 6: direcaoAtual = "SE"; break;
+                    case 7: direcaoAtual = "E";  break;
+                }
+
+                // Toca o som de passos
+                stepTimer += delta;
+                if (stepTimer >= intervaloPassoAndando) {
+                    somPassos.play(0.13f);
+                    stepTimer = 0f;
+                }
+            } else {
+                // Chegou no destino! Congela no lugar.
+                estaEmMovimento = false;
+                inputDirecao.set(0, 0);
+            }
+            atualizarHitbox();
+            return; // O RETURN É CRUCIAL! Ele impede que o código continue e leia o teclado!
+        }
 
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;

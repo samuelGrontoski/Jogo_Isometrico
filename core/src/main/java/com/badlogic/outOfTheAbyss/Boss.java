@@ -19,6 +19,7 @@ public class Boss {
     public int vida = vidaMaxima;
     public boolean isDead = false;
     private boolean isBlinking = false;
+    public boolean isAtivo = false;
     private float blinkTimer = 0f;
     public Vector2 position;
     public float speed = 7f;
@@ -179,6 +180,12 @@ public class Boss {
         }
 
         if (isDead) {
+            stateTime += delta;
+            return;
+        }
+
+        if (!isAtivo) {
+            currentState = "IDLE";
             stateTime += delta;
             return;
         }

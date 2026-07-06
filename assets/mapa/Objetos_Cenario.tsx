@@ -215,6 +215,9 @@
   <image source="Objetos_Cenario/WraithIsland_NecroLair_SkullPile_01_A.png" width="56" height="74"/>
  </tile>
  <tile id="70">
+  <properties>
+   <property name="mensagemSaida" type="bool" value="true"/>
+  </properties>
   <image source="Objetos_Cenario/porta.png" width="144" height="108"/>
  </tile>
 </tileset>
