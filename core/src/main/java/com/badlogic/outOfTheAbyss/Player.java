@@ -276,9 +276,13 @@ public class Player {
     private void iniciarHeal() {
         estaCurando = true;
         healTimer = 0f;
-        curasAtuais--;            // Gasta 1 carga
-        cooldownCuraTimer = 0f;   // Zera o timer forçando esperar 20s para o próximo
+        curasAtuais--;
+        cooldownCuraTimer = 0f;
         somCura.play(0.5f);
+        vida++;
+        if (vida > vidaMaxima) {
+            vida = vidaMaxima;
+        }
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
@@ -530,5 +534,15 @@ public class Player {
             posicaoMundo.x + hitbox.width,
             posicaoMundo.y + hitbox.height
         );
+    }
+
+    public boolean isAnimacaoMorteTerminada() {
+        if (!isDead) return false;
+
+        Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
+        if (anim == null) anim = deathAnimations.get("SE");
+
+        // Verifica se o tempo atual do stateTime já ultrapassou o tempo total da animação
+        return anim.isAnimationFinished(stateTime);
     }
 }

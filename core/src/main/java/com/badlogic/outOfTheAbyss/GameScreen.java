@@ -21,6 +21,7 @@ import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
 import com.badlogic.gdx.math.*;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -90,6 +91,10 @@ public class GameScreen implements Screen {
     private Texture btnTecla1;
     private Texture btnShift;
 
+    // Variáveis da Barra de Vida
+    private Texture uiHealthBarSheet;
+    private TextureRegion[] uiHealthBarFrames;
+
     // --- LUZ E FOG ---
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
@@ -130,6 +135,11 @@ public class GameScreen implements Screen {
 
     Boss boss;
 
+    // Variáveis para a transição de morte
+    private boolean iniciandoMorte = false;
+    private float alphaMorte = 0f;
+    private Texture pixelPretoTransicao;
+
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
         this.batch = game.batch;
@@ -159,6 +169,7 @@ public class GameScreen implements Screen {
         pixmap.setColor(Color.BLACK);
         pixmap.fill();
         pixelPreto = new Texture(pixmap);
+        pixelPretoTransicao = new Texture(pixmap);
         pixmap.dispose();
 
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
@@ -342,6 +353,18 @@ public class GameScreen implements Screen {
         btnTecla1 = game.assets.get("skills/tecla1_icon.png", Texture.class);
         btnShift = game.assets.get("skills/shift_icon.png", Texture.class);
 
+        // Inicialização e fatiamento da Barra de Vida
+        uiHealthBarSheet = game.assets.get("personagem/Health_Bar.png", Texture.class);
+        uiHealthBarFrames = new TextureRegion[6];
+
+        // Divide a textura inteira por 6 para descobrir a largura exata de 1 frame
+        int frameWidth = uiHealthBarSheet.getWidth() / 6;
+        int frameHeight = uiHealthBarSheet.getHeight();
+
+        for (int i = 0; i < 6; i++) {
+            uiHealthBarFrames[i] = new TextureRegion(uiHealthBarSheet, i * frameWidth, 0, frameWidth, frameHeight);
+        }
+
         // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmapHUD.setColor(0, 0, 0, 0.75f);
@@ -388,6 +411,13 @@ public class GameScreen implements Screen {
             game.setScreen(new MenuInicial(game));
             dispose();
             return false;
+        }
+
+        if (player.isDead) {
+            // Se morreu, dispara a transição apenas uma vez
+            if (!iniciandoMorte) {
+                iniciandoMorte = true;
+            }
         }
 
         if (playerController.consumeFullscreenToggle()) {
@@ -868,6 +898,16 @@ public class GameScreen implements Screen {
         float espacamento = 10f;
         float margemDireita = 60f;
         float margemInferior = 20f;
+        float margemEsquerda = 60f;
+
+        int indexVida = MathUtils.clamp(player.vida, 0, 5);
+        TextureRegion currentHealthFrame = uiHealthBarFrames[indexVida];
+
+        float escalaBarra = 4f;
+        float barraWidth = currentHealthFrame.getRegionWidth() * escalaBarra;
+        float barraHeight = currentHealthFrame.getRegionHeight() * escalaBarra;
+
+        game.batch.draw(currentHealthFrame, margemEsquerda, margemInferior, barraWidth, barraHeight);
 
         // Calcula posições X da direita para a esquerda
         float xCorrida = uiViewport.getWorldWidth() - margemDireita - slotSize;
@@ -935,6 +975,32 @@ public class GameScreen implements Screen {
         // Desenha Shift (Corrida) - Usando a largura ajustável
         float xBtnShift = xCorrida + (slotSize / 2f) - (btnWidthShift / 2f);
         game.batch.draw(btnShift, xBtnShift, btnY, btnWidthShift, btnSize);
+
+        // Efeito de Fade Out ao morrer
+        if (iniciandoMorte) {
+
+            // Só começa a escurecer a tela SE a animação do player terminou
+            if (player.isAnimacaoMorteTerminada()) {
+
+                alphaMorte += delta * 1.0f;
+
+                // O SpriteBatch JÁ ESTÁ ABERTO aqui! Não precisamos chamar begin() de novo.
+                // A transparência (Blend) também já é nativa do SpriteBatch.
+
+                // Apenas tingimos o batch de preto com Alpha e desenhamos o retângulo
+                game.batch.setColor(0f, 0f, 0f, Math.min(alphaMorte, 1f));
+                game.batch.draw(pixelPretoTransicao, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
+
+                // Restaura a cor do batch para branco para não afetar os frames seguintes
+                game.batch.setColor(Color.WHITE);
+
+                // Quando a tela estiver 100% preta, muda de tela
+                if (alphaMorte >= 1.05f) {
+                    game.setScreen(new TelaMorte(game));
+                    dispose();
+                }
+            }
+        }
 
         batch.end();
     }
@@ -1013,6 +1079,7 @@ public class GameScreen implements Screen {
         lightBrush.dispose();
         mapaTiled.dispose();
         pixelPreto.dispose();
+        pixelPretoTransicao.dispose();
         portraitAephorul.dispose();
         musicaFundo.stop();
         musicaBoss.stop();
