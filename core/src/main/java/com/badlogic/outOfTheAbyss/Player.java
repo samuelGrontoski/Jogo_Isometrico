@@ -34,7 +34,7 @@ public class Player {
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
-    public String direcaoAtual = "SE";
+    public String direcaoAtual = "NW";
     public float velocidadeBase = 7.5f;
 
     // Controles de estado
