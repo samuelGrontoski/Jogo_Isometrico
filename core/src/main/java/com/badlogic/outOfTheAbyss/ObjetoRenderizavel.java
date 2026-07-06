@@ -1,5 +1,6 @@
 package com.badlogic.outOfTheAbyss;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.maps.tiled.TiledMapTile;
 
@@ -9,6 +10,7 @@ public class ObjetoRenderizavel {
     public float drawY;
     public float sortY;
     public float alpha = 1f;
+    public Color color = Color.WHITE;
 
     // Propriedades para transformações (Escala, Rotação)
     public boolean isTransformado = false;

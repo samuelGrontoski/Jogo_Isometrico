@@ -15,13 +15,12 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.MapLayer;
+import com.badlogic.gdx.maps.MapObject;
+import com.badlogic.gdx.maps.objects.PolygonMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
-import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -82,6 +81,7 @@ public class GameScreen implements Screen {
     private Texture uiFrame;
     private Texture uiSombraCooldown;
 
+    // --- LUZ E FOG ---
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
     Texture lightBrush;
@@ -112,7 +112,12 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
+    // --- VARIÁVEIS DA MÚSICA E GATILHOS ---
     private Music musicaFundo;
+    private Music musicaBoss;
+    private float volumeFundo = 1.0f;
+    private float volumeBoss = 0f;
+    Array<Polygon> gatilhosMusicaBoss = new Array<>();
 
     Boss boss;
 
@@ -131,10 +136,15 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
+        // INICIALIZAÇÃO DOS ÁUDIOS
         musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
         musicaFundo.setLooping(true);
-        musicaFundo.setVolume(1.2f);
+        musicaFundo.setVolume(volumeFundo);
         musicaFundo.play();
+
+        musicaBoss = game.assets.get("sons/Boss_music.mp3", Music.class);
+        musicaBoss.setLooping(true);
+        musicaBoss.setVolume(volumeBoss);
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
@@ -254,6 +264,40 @@ public class GameScreen implements Screen {
             }
         }
 
+        MapLayer layerGatilhos = mapaTiled.getLayers().get("Gatilhos");
+        if (layerGatilhos != null) {
+            for (MapObject objeto : layerGatilhos.getObjects()) {
+                // AGORA LÊ POLÍGONOS!
+                if (objeto instanceof PolygonMapObject) {
+                    Object propMusica = objeto.getProperties().get("musica");
+                    // Proteção caso tenha escrito com 'M' maiúsculo no Tiled
+                    if (propMusica == null) propMusica = objeto.getProperties().get("Musica");
+
+                    if (propMusica != null && "boss".equalsIgnoreCase(propMusica.toString().trim())) {
+                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
+
+                        // Pega os pontos do polígono já convertidos para o ponto x,y dele no Tiled
+                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
+                        float[] verticesFisica = new float[verticesTiled.length];
+
+                        // Converte cada ponto do polígono para a nossa matemática física!
+                        for (int i = 0; i < verticesTiled.length; i += 2) {
+                            float pX = verticesTiled[i];
+                            float pY = verticesTiled[i + 1];
+
+                            float tX = pX / tile_height;
+                            float tY = pY / tile_height;
+
+                            verticesFisica[i] = tY;        // worldX = TiledY
+                            verticesFisica[i + 1] = -tX;   // worldY = -TiledX
+                        }
+
+                        gatilhosMusicaBoss.add(new Polygon(verticesFisica));
+                    }
+                }
+            }
+        }
+
         lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
         lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
         lightBufferRegion.flip(false, true);
@@ -262,7 +306,7 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(75f, -20f);
+        Vector2 posicaoInicial = new Vector2(60f, -58f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
@@ -345,7 +389,13 @@ public class GameScreen implements Screen {
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
-        player.updateInput(delta, hitboxesMapa, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+        // --- CORREÇÃO AQUI ---
+        // Extraímos a hitbox do boss de forma segura (se o boss for null, passamos null)
+        Rectangle hitboxDoBoss = (boss != null) ? boss.hitbox : null;
+
+        // Chamada atualizada respeitando a nova ordem de parâmetros na classe Player
+        player.updateInput(delta, hitboxesMapa, hitboxDoBoss, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
+
         return true;
     }
 
@@ -367,30 +417,61 @@ public class GameScreen implements Screen {
         }
         // -----------------------------
 
-        player.atualizarLogicaAtaque(delta, morcegos);
+        // --- SISTEMA DE CROSSFADE DA MÚSICA ---
+        boolean naSalaDoBoss = false;
+        float centroX = player.hitbox.x + (player.hitbox.width / 2f);
+        float centroY = player.hitbox.y + (player.hitbox.height / 2f);
+
+        for (Polygon gatilho : gatilhosMusicaBoss) {
+            if (gatilho.contains(centroX, centroY)) {
+                naSalaDoBoss = true;
+                break;
+            }
+        }
+
+        // --- AQUI ESTÁ A NOVA CONDIÇÃO ---
+        // Se o boss já morreu, forçamos o sistema a achar que a sala do boss "acabou",
+        // fazendo o crossfade retornar para a música normal.
+        if (boss != null && boss.isDead) {
+            naSalaDoBoss = false;
+        }
+
+        float velocidadeFade = 1.0f * delta; // Velocidade da transição (1 segundo para trocar)
+
+        if (naSalaDoBoss) {
+            if (!musicaBoss.isPlaying()) musicaBoss.play();
+            // Aumenta o Boss, diminui a Caverna (Limitado em 0.1f conforme o seu original)
+            volumeBoss = Math.min(0.1f, volumeBoss + velocidadeFade);
+            volumeFundo = Math.max(0f, volumeFundo - velocidadeFade);
+        } else {
+            if (!musicaFundo.isPlaying()) musicaFundo.play();
+            // Aumenta a Caverna, diminui o Boss (Limitado em 1.0f)
+            volumeFundo = Math.min(1.0f, volumeFundo + velocidadeFade);
+            volumeBoss = Math.max(0f, volumeBoss - velocidadeFade);
+        }
+
+        musicaFundo.setVolume(volumeFundo);
+        musicaBoss.setVolume(volumeBoss);
+
+        // Pausa a música que ficou totalmente muda para economizar CPU
+        if (volumeFundo <= 0f && musicaFundo.isPlaying()) musicaFundo.pause();
+        if (volumeBoss <= 0f && musicaBoss.isPlaying()) musicaBoss.pause();
+        // ----------------------------------------
+
+        player.atualizarLogicaAtaque(delta, morcegos, boss);
 
         if (boss != null) {
-            boss.update(delta, player.posicaoMundo, player.hitbox, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+            boss.update(delta, player, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
 
-            // --- CHECAGEM DE COLISÃO: TEIAS VS PLAYER ---
             for (TeiaProjetil teia : boss.teiasAtivas) {
                 if (teia.hitbox.overlaps(player.hitbox)) {
 
                     if (teia.voando) {
-                        // 1. O projetil bateu no player enquanto voava!
-                        // Aqui você chama o método de dano do seu player. Exemplo:
-                        // player.tomarDano(15);
-
-                        // Força a teia a cair no chão imediatamente onde acertou o player
                         teia.voando = false;
                         teia.stateTime = 0f;
                         teia.posicaoMundo.set(player.posicaoMundo);
                         teia.hitbox.setPosition(teia.posicaoMundo.x, teia.posicaoMundo.y);
-                    }
-                    else {
-                        // 2. A teia já está no chão e o player pisou nela (Armadilha)
-                        // Aqui você pode aplicar um status de lentidão. Exemplo:
-                        // player.aplicarLentidao(delta);
+                        player.tomarDano(1);
                     }
                 }
             }
@@ -430,8 +511,6 @@ public class GameScreen implements Screen {
         viewport.apply();
 
         mapRenderer.setView(camera);
-        // O render() do IsometricTiledMapRenderer empilha perfeitamente e desenha
-        // o "ground", o "limites_mapa" e as "paredes" obedecendo a ordem e a transparência.
         mapRenderer.render();
 
         batch.setProjectionMatrix(camera.combined);
@@ -440,6 +519,8 @@ public class GameScreen implements Screen {
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
+        // Opcional: Garantir que o player não receba cor residual
+        player.renderObj.color = Color.WHITE;
         listaDeDesenho.add(player.renderObj);
 
         for (Morcego morcego : morcegos) {
@@ -447,6 +528,7 @@ public class GameScreen implements Screen {
             float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
             morcego.prepararZSorting(mScreenX, mScreenY);
             morcego.renderObj.alpha = 1f;
+            morcego.renderObj.color = Color.WHITE;
             listaDeDesenho.add(morcego.renderObj);
         }
 
@@ -456,9 +538,14 @@ public class GameScreen implements Screen {
                 ObjetoRenderizavel bossRender = new ObjetoRenderizavel();
                 bossRender.textura = frame;
                 bossRender.drawX = boss.getScreenX() - (frame.getRegionWidth() / 2f);
-                bossRender.drawY = boss.getScreenY() - 175f; // + ajuste fino se precisar
+                bossRender.drawY = boss.getScreenY() - 175f;
                 bossRender.sortY = boss.getScreenY();
                 bossRender.alpha = 1f;
+
+                // --- AQUI ---
+                // Copiamos a cor exata que está sendo calculada pela classe Boss
+                bossRender.color = boss.renderObj.color != null ? boss.renderObj.color : Color.WHITE;
+
                 bossRender.isElementoMapa = false;
                 listaDeDesenho.add(bossRender);
             }
@@ -474,40 +561,29 @@ public class GameScreen implements Screen {
                     ObjetoRenderizavel teiaRender = new ObjetoRenderizavel();
                     teiaRender.textura = frameTeia;
                     teiaRender.drawX = tScreenX - (frameTeia.getRegionWidth() / 2f);
-                    teiaRender.drawY = tScreenY - 40f; // Ajuste fino da altura isométrica
-
+                    teiaRender.drawY = tScreenY - 0f;
                     teiaRender.sortY = tScreenY;
                     teiaRender.alpha = 1f;
+                    teiaRender.color = Color.WHITE;
                     teiaRender.isElementoMapa = false;
                     listaDeDesenho.add(teiaRender);
                 }
             }
         }
 
-        // --- INÍCIO DA ALTERAÇÃO: CAMERA CULLING (OTIMIZAÇÃO) ---
-
-        // 1. Definimos uma margem de segurança (em pixels) para que texturas grandes
-        // não desapareçam de forma brusca quando o centro delas sair da tela.
+        // --- CULLING ---
         float margemCulling = 1024f;
-
-        // 2. Calculamos as bordas da visão atual da câmera no mundo
         float cameraEsquerda = camera.position.x - (viewport.getWorldWidth() / 2f) - margemCulling;
         float cameraDireita  = camera.position.x + (viewport.getWorldWidth() / 2f) + margemCulling;
         float cameraBaixo    = camera.position.y - (viewport.getWorldHeight() / 2f) - margemCulling;
         float cameraCima     = camera.position.y + (viewport.getWorldHeight() / 2f) + margemCulling;
 
-        // 3. Adiciona apenas os elementos que estão dentro da visão da câmera
         for (ObjetoRenderizavel elementoMapa : elementosMapaRenderizaveis) {
-
-            // Checagem AABB (Axis-Aligned Bounding Box) ultra rápida
             if (elementoMapa.drawX >= cameraEsquerda && elementoMapa.drawX <= cameraDireita &&
                 elementoMapa.drawY >= cameraBaixo    && elementoMapa.drawY <= cameraCima) {
-
                 listaDeDesenho.add(elementoMapa);
             }
         }
-
-        // --- FIM DA ALTERAÇÃO ---
 
         listaDeDesenho.sort(zIndexComparator);
 
@@ -516,7 +592,15 @@ public class GameScreen implements Screen {
                 obj.textura = obj.tile.getTextureRegion();
             }
             if (obj.textura != null) {
-                batch.setColor(1f, 1f, 1f, obj.alpha);
+
+                // --- AQUI ---
+                // Aplicamos a cor da entidade ao SpriteBatch.
+                // A cor contém valores normalizados R, G, B e o Alpha.
+                if (obj.color != null) {
+                    batch.setColor(obj.color.r, obj.color.g, obj.color.b, obj.alpha);
+                } else {
+                    batch.setColor(1f, 1f, 1f, obj.alpha);
+                }
 
                 if (obj.isTransformado) {
                     batch.draw(obj.textura, obj.drawX, obj.drawY,
@@ -531,6 +615,8 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
+        // O restante do método (luzes, hitboxes, HUD, etc) continua inalterado daqui para baixo...
+
         lightBuffer.begin();
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -539,9 +625,6 @@ public class GameScreen implements Screen {
         batch.begin();
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
 
-        // --- INÍCIO DA ALTERAÇÃO DAS LUZES ---
-
-        // 1. Pinta o SpriteBatch de Vermelho
         batch.setColor(1f, 0.2f, 0.2f, 1f);
         float raioLuzPoste = 350f;
         for (Vector2 posLuz : luzesVermelhas) {
@@ -550,21 +633,16 @@ public class GameScreen implements Screen {
             batch.draw(lightBrush, lx, ly, raioLuzPoste, raioLuzPoste);
         }
 
-        // 2. Pinta o SpriteBatch de Azul (R=0.2, G=0.4, B=1.0)
         batch.setColor(0.2f, 0.4f, 1f, 1f);
-        float raioLuzCristal = 400f; // Cristais iluminam uma área menor
+        float raioLuzCristal = 400f;
         for (Vector2 posLuz : luzesAzuis) {
             float lx = posLuz.x - (raioLuzCristal / 2f);
             float ly = posLuz.y - (raioLuzCristal / 2f);
             batch.draw(lightBrush, lx, ly, raioLuzCristal, raioLuzCristal);
         }
 
-        // 3. RETORNA a cor para Branco para a luz do jogador não bugar!
         batch.setColor(Color.WHITE);
 
-        // --- FIM DA ALTERAÇÃO DAS LUZES ---
-
-        // Mantendo seu raio de visão gigante
         float raioVisao = 700f;
         float luzX = screenX - (raioVisao / 2f);
         float luzY = screenY - (raioVisao / 2f) + (tile_height);
@@ -592,6 +670,22 @@ public class GameScreen implements Screen {
                 desenharRetanguloIsometrico(mapRect, shapeRenderer);
             }
 
+            shapeRenderer.setColor(Color.CYAN);
+            for (Polygon gatilho : gatilhosMusicaBoss) {
+                float[] vFisica = gatilho.getVertices();
+                float[] vTela = new float[vFisica.length];
+
+                for (int i = 0; i < vFisica.length; i += 2) {
+                    float px = vFisica[i];
+                    float py = vFisica[i+1];
+
+                    vTela[i] = (px - py) * (tile_width / 2f);
+                    vTela[i+1] = -(px + py) * (tile_height / 2f);
+                }
+
+                shapeRenderer.polygon(vTela);
+            }
+
             shapeRenderer.setColor(Color.RED);
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo) desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
@@ -600,14 +694,8 @@ public class GameScreen implements Screen {
             shapeRenderer.setColor(Color.YELLOW);
             if (boss != null) {
                 desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
-            }
 
-            shapeRenderer.setColor(Color.YELLOW);
-            if (boss != null) {
-                desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
-
-                // --- DESENHA A HITBOX DAS TEIAS ---
-                shapeRenderer.setColor(Color.CYAN); // Cor ciano para as teias
+                shapeRenderer.setColor(Color.CYAN);
                 for (TeiaProjetil teia : boss.teiasAtivas) {
                     desenharRetanguloIsometrico(teia.hitbox, shapeRenderer);
                 }
@@ -646,6 +734,41 @@ public class GameScreen implements Screen {
                     shapeRenderer.rect(barraX, barraY, larguraBarra * proporcaoVida, alturaBarra);
                 }
             }
+
+            if (boss != null && !boss.isDead) {
+                float bScreenX = boss.getScreenX();
+                float bScreenY = boss.getScreenY();
+
+                float larguraBarraBoss = 60f;
+                float alturaBarraBoss = 6f;
+                float barraBossX = bScreenX - (larguraBarraBoss / 2f);
+                float barraBossY = bScreenY + 40f;
+
+                shapeRenderer.setColor(Color.RED);
+                shapeRenderer.rect(barraBossX, barraBossY, larguraBarraBoss, alturaBarraBoss);
+
+                shapeRenderer.setColor(Color.GREEN);
+                float proporcaoVidaBoss = Math.max(0, (float) boss.vida / boss.vidaMaxima);
+                shapeRenderer.rect(barraBossX, barraBossY, larguraBarraBoss * proporcaoVidaBoss, alturaBarraBoss);
+            }
+
+            if (!player.isDead) {
+                float pScreenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
+                float pScreenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
+
+                float larguraBarraPlayer = 40f;
+                float alturaBarraPlayer = 5f;
+                float barraPlayerX = pScreenX - (larguraBarraPlayer / 2f);
+                float barraPlayerY = pScreenY + 40f; // Ajuste acima da cabeça
+
+                shapeRenderer.setColor(Color.RED);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer, alturaBarraPlayer);
+
+                shapeRenderer.setColor(Color.GREEN);
+                float proporcaoVidaPlayer = Math.max(0, (float) player.vida / player.vidaMaxima);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer * proporcaoVidaPlayer, alturaBarraPlayer);
+            }
+
             shapeRenderer.end();
         }
 
@@ -666,11 +789,8 @@ public class GameScreen implements Screen {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
 
-        // --- INTERFACE DE USUÁRIO (HUD) ---
         uiViewport.apply();
         batch.setProjectionMatrix(uiCamera.combined);
-
-        // 1. ABRE A CANETA UMA ÚNICA VEZ PARA TODA A UI
         batch.begin();
 
         if (pertoDoCristal && !mostrandoMensagemMagica) {
@@ -679,13 +799,9 @@ public class GameScreen implements Screen {
         }
 
         if (mostrandoMensagemMagica) {
-            // Desenha o Fundo Escuro
             batch.setColor(1f, 1f, 1f, 0.8f);
             batch.draw(pixelPreto, 50, 50, uiViewport.getWorldWidth() - 100, 150);
-
-            // Retorna a cor para branco ANTES de desenhar o portrait e o texto
             batch.setColor(Color.WHITE);
-
             batch.draw(portraitAephorul, 60, 60, 320, 320);
 
             font.setColor(Color.FIREBRICK);
@@ -700,7 +816,6 @@ public class GameScreen implements Screen {
             font.draw(batch, "Samuel Grontoski", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 80);
         }
 
-        // 2. DEBUG INFO (Removemos o begin() e end() que causavam o erro)
         if (mostrarDebugInfo) {
             String textoOverlay = String.format(
                 "FPS: %d\nPOS MUNDO:\nX: %.2f | Y: %.2f\nPOS TELA:\nX: %.1f | Y: %.1f",
@@ -709,12 +824,8 @@ public class GameScreen implements Screen {
             font.setColor(Color.GREEN);
             font.draw(batch, textoOverlay, 15, uiViewport.getWorldHeight() - 300);
         }
-
-        // 3. FECHA A CANETA DA UI
         batch.end();
 
-
-        // --- CORTINA DE ILUMINAÇÃO (FADE IN DO JOGO) ---
         if (transicaoAlpha > 0f) {
             transicaoAlpha -= delta * VELOCIDADE_FADE;
             if (transicaoAlpha < 0f) transicaoAlpha = 0f;
@@ -725,7 +836,6 @@ public class GameScreen implements Screen {
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-            // Como fechamos o batch ali em cima, podemos abrir este com segurança!
             batch.begin();
             batch.setColor(1f, 1f, 1f, transicaoAlpha);
             batch.draw(pixelPreto, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
@@ -733,30 +843,24 @@ public class GameScreen implements Screen {
             batch.end();
         }
 
-        // HUD de skills
         batch.begin();
-
         game.batch.setProjectionMatrix(uiViewport.getCamera().combined);
-        game.batch.setColor(Color.WHITE); // Garante que a UI não herde nenhuma cor de dano/luz
+        game.batch.setColor(Color.WHITE);
 
-        // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
         float slotSize = 48f;
         float espacamento = 10f;
         float margemDireita = 60f;
         float margemInferior = 20f;
 
-        // Calcula posições X da direita para a esquerda
         float xDash = uiViewport.getWorldWidth() - margemDireita - slotSize;
         float xPesado = xDash - slotSize - espacamento;
         float xLeve = xPesado - slotSize - espacamento;
         float uiY = margemInferior;
 
-        // Calcula as porcentagens de recarga atualizadas (0.0 a 1.0)
         float porcLeve = MathUtils.clamp(player.attackTimer / player.tempoRecargaAtaque, 0f, 1f);
         float porcPesado = MathUtils.clamp(player.attackPesadoTimer / player.tempoRecargaAtaquePesado, 0f, 1f);
         float porcDash = MathUtils.clamp(player.cooldownRollTimer / player.tempoRecargaRoll, 0f, 1f);
 
-        // Desenha os três slots com os ícones correspondentes
         desenharSlotHabilidade(uiIconAtaqueLeve, uiFrame, xLeve, uiY, slotSize, porcLeve);
         desenharSlotHabilidade(uiIconAtaquePesado, uiFrame, xPesado, uiY, slotSize, porcPesado);
         desenharSlotHabilidade(uiIconDash, uiFrame, xDash, uiY, slotSize, porcDash);
@@ -840,6 +944,7 @@ public class GameScreen implements Screen {
         pixelPreto.dispose();
         portraitAephorul.dispose();
         musicaFundo.stop();
+        musicaBoss.stop();
         if (uiSombraCooldown != null) uiSombraCooldown.dispose();
     }
 }
