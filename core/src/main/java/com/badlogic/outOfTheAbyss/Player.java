@@ -1,6 +1,7 @@
 package com.badlogic.outOfTheAbyss;
 
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -13,6 +14,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Player {
+    // --- EFEITOS SONOROS ---
+    private Sound somAtaque;
+    private Sound somCura;
+    private Sound somPassos;
+
+    // --- CONTROLE DE PASSOS ---
+    private float stepTimer = 0f;
+    // Ajuste esses valores para sincronizar com os frames em que o pé do personagem toca o chão:
+    private float intervaloPassoAndando = 0.63f;
+    private float intervaloPassoCorrendo = 0.38f;
+    private float intervaloPassoAgachado = 0.63f;
+
+    // --- STATUS DE VIDA ---
+    public int vidaMaxima = 5;
+    public int vida = vidaMaxima;
+    public boolean isDead = false;
+
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
@@ -32,6 +50,10 @@ public class Player {
     public boolean estaCurando = false;
     public float healTimer = 0f;
     public final float duracaoHeal = 0.7f;
+    public int curasAtuais = 2;
+    public final int maxCuras = 2;
+    public float cooldownCuraTimer = 2f;
+    public final float tempoRecargaCura = 2f;
 
     public Rectangle hitbox;
     public Rectangle hitboxAtaque;
@@ -53,9 +75,12 @@ public class Player {
     public final float tempoRecargaRoll = 1.5f;
     public Vector2 direcaoRoll = new Vector2();
 
+    // Variaveis da cutscene ---
+    public boolean emCutscene = false;
+    public Vector2 destinoCutscene = new Vector2();
+
     float stateTime;
 
-    // Dicionários para guardar as 8 direções de cada estado
     Map<String, Animation<TextureRegion>> idleAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> walkAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> runAnimations = new HashMap<>();
@@ -65,6 +90,7 @@ public class Player {
     Map<String, Animation<TextureRegion>> attackLeveAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> attackPesadoAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> healAnimations = new HashMap<>();
+    Map<String, Animation<TextureRegion>> deathAnimations = new HashMap<>();
 
     public ObjetoRenderizavel renderObj;
     private final PlayerController controller;
@@ -77,6 +103,9 @@ public class Player {
         this.hitboxAtaquePesado = new Rectangle();
         this.renderObj = new ObjetoRenderizavel();
         this.controller = controller;
+        this.somAtaque = assets.get("sons/ataque_espada.wav", Sound.class);
+        this.somCura = assets.get("sons/cura.mp3", Sound.class);
+        this.somPassos = assets.get("sons/passos.wav", Sound.class);
 
         carregarAnimacoes(assets);
         atualizarHitbox();
@@ -92,9 +121,10 @@ public class Player {
         Texture attackLeveSheet = assets.get("personagem/Melee1.png", Texture.class);
         Texture attackPesadoSheet = assets.get("personagem/Melee2.png", Texture.class);
         Texture healSheet = assets.get("personagem/Heal.png", Texture.class);
+        Texture deathSheet = assets.get("personagem/Die.png", Texture.class);
 
-        int cols = 15; // 15 frames por animação
-        int rows = 8;  // 8 direções
+        int cols = 15;
+        int rows = 8;
 
         idleAnimations = criarAnimacao(idleSheet, cols, rows, 0.1f, Animation.PlayMode.LOOP);
         walkAnimations = criarAnimacao(walkSheet, cols, rows, 0.08f, Animation.PlayMode.LOOP);
@@ -105,9 +135,11 @@ public class Player {
         attackLeveAnimations = criarAnimacao(attackLeveSheet, cols, rows, duracaoAtaque / cols, Animation.PlayMode.NORMAL);
         attackPesadoAnimations = criarAnimacao(attackPesadoSheet, cols, rows, duracaoAtaquePesado / cols, Animation.PlayMode.NORMAL);
         healAnimations = criarAnimacao(healSheet, cols, rows, duracaoHeal / cols, Animation.PlayMode.NORMAL);
+
+        // Carrega a animação de morte com PlayMode.NORMAL para poder travar no último frame
+        deathAnimations = criarAnimacao(deathSheet, cols, rows, 0.15f, Animation.PlayMode.NORMAL);
     }
 
-    // Função universal que mapeia qualquer Spritesheet padronizado e devolve o Dicionário pronto
     private Map<String, Animation<TextureRegion>> criarAnimacao(Texture sheet, int cols, int rows, float frameDuration, Animation.PlayMode mode) {
         Map<String, Animation<TextureRegion>> mapaAnimacoes = new HashMap<>();
         String[] direcoesOrdem = {"E", "SE", "S", "SW", "W", "NW", "N", "NE"};
@@ -127,8 +159,60 @@ public class Player {
     }
 
     public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+        if (isDead) return;
+
+        if (emCutscene) {
+            // Força o cancelamento de qualquer ação (caso o player entre rolando ou atacando)
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaRolando = false;
+            estaCurando = false;
+
+            // Calcula a distância entre onde o player está e onde deve chegar
+            Vector2 direcao = new Vector2(destinoCutscene).sub(posicaoMundo);
+
+            // Se a distância for maior que 0.2 blocos (ainda não chegou)
+            if (direcao.len() > 0.2f) {
+                inputDirecao.set(direcao).nor(); // Aponta o joystick virtual para o destino
+                float moveSpeed = velocidadeBase * delta;
+                aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
+                estaEmMovimento = true;
+
+                // Atualiza a direção que a arte deve olhar matematicamente
+                float angle = MathUtils.atan2(inputDirecao.y, inputDirecao.x) * MathUtils.radiansToDegrees;
+                if (angle < 0) angle += 360f;
+                int index = MathUtils.floor((angle + 22.5f) / 45f) % 8;
+                switch (index) {
+                    case 0: direcaoAtual = "NE"; break;
+                    case 1: direcaoAtual = "N";  break;
+                    case 2: direcaoAtual = "NW"; break;
+                    case 3: direcaoAtual = "W";  break;
+                    case 4: direcaoAtual = "SW"; break;
+                    case 5: direcaoAtual = "S";  break;
+                    case 6: direcaoAtual = "SE"; break;
+                    case 7: direcaoAtual = "E";  break;
+                }
+
+                // Toca o som de passos
+                stepTimer += delta;
+                if (stepTimer >= intervaloPassoAndando) {
+                    somPassos.play(0.13f);
+                    stepTimer = 0f;
+                }
+            } else {
+                // Chegou no destino! Congela no lugar.
+                estaEmMovimento = false;
+                inputDirecao.set(0, 0);
+            }
+            atualizarHitbox();
+            return; // O RETURN É CRUCIAL! Ele impede que o código continue e leia o teclado!
+        }
+
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;
+        }
+        if (cooldownCuraTimer < tempoRecargaCura) {
+            cooldownCuraTimer += delta;
         }
         inputDirecao.set(0, 0);
 
@@ -140,19 +224,20 @@ public class Player {
             iniciarRoll();
         }
 
-        if (controller.consumeHeal() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando) {
+        if (controller.consumeHeal() && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando && curasAtuais > 0 && cooldownCuraTimer >= tempoRecargaCura) {
             iniciarHeal();
         }
 
         float velocidadeAtual = velocidadeBase;
 
-        // --- MÁQUINA DE ESTADO ---
         if (estaCurando) {
             healTimer += delta;
-            velocidadeAtual = 0f;
+            //velocidadeAtual = 0f;
             estaCorrendo = false;
             estaAgachado = false;
             if (healTimer >= duracaoHeal) estaCurando = false;
+            inputDirecao.set(0, 0);
+            estaEmMovimento = false;
 
         } else if (estaRolando) {
             rollTimer += delta;
@@ -181,11 +266,28 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque(mouseMundoX, mouseMundoY);
-
-        // Repasse o hitboxBoss para a função de movimento
         aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
+
+        if (estaEmMovimento && !estaRolando && !estaAtacando && !estaAtacandoPesado && !estaCurando) {
+            stepTimer += delta;
+
+            // Define o intervalo dependendo do estado atual do player
+            float intervaloAtual = estaCorrendo ? intervaloPassoCorrendo : (estaAgachado ? intervaloPassoAgachado : intervaloPassoAndando);
+
+            // Quando o timer atinge o intervalo, toca o som e zera o timer
+            if (stepTimer >= intervaloAtual) {
+                // Toca os passos baixinho (ex: 20% do volume) para não irritar o jogador
+                somPassos.play(0.13f);
+                stepTimer = 0f;
+            }
+        } else {
+            // Forçamos o stepTimer para um valor alto quando o jogador está parado.
+            // Isso garante que, assim que ele apertar W, A, S ou D, o primeiro som de
+            // passo toque IMEDIATAMENTE (dando feedback de resposta instantânea).
+            stepTimer = 100f;
+        }
     }
 
     private void lerInputsController() {
@@ -225,6 +327,13 @@ public class Player {
     private void iniciarHeal() {
         estaCurando = true;
         healTimer = 0f;
+        curasAtuais--;
+        cooldownCuraTimer = 0f;
+        somCura.play(0.5f);
+        vida++;
+        if (vida > vidaMaxima) {
+            vida = vidaMaxima;
+        }
     }
 
     private void verificarAtaque(float mouseMundoX, float mouseMundoY) {
@@ -233,11 +342,9 @@ public class Player {
             attackTimer = 0f;
             danoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
             float alcanceLeve = 2.0f;
@@ -253,6 +360,8 @@ public class Player {
                 larguraHitboxLeve,
                 alturaHitboxLeve
             );
+
+            somAtaque.play(0.2f);
         }
 
         if (controller.consumeAttackPesado() && attackPesadoTimer >= tempoRecargaAtaquePesado && !estaRolando && !estaAtacando && !estaCurando) {
@@ -260,14 +369,12 @@ public class Player {
             attackPesadoTimer = 0f;
             danoPesadoAplicado = false;
 
-            // 1. Descobrir o centro real da Hitbox do Player
             float centroPlayerX = hitbox.x + (hitbox.width / 2f);
             float centroPlayerY = hitbox.y + (hitbox.height / 2f);
 
-            // 2. Mirar a partir do centro real
             Vector2 vetorMira = getVector2(mouseMundoX, mouseMundoY, centroPlayerX, centroPlayerY);
 
-            float alcancePesado = 2.0f; // Ataque pesado precisa ir mais longe para ficar fora da hitbox
+            float alcancePesado = 2.0f;
             float larguraHitboxPesado = 2.4f;
             float alturaHitboxPesado = 2.4f;
 
@@ -280,10 +387,11 @@ public class Player {
                 larguraHitboxPesado,
                 alturaHitboxPesado
             );
+
+            somAtaque.play(0.2f, 0.70f, 0f);
         }
     }
 
-    // Mira usada nos ataques leve e pesado
     private Vector2 getVector2(float mouseMundoX, float mouseMundoY, float origemX, float origemY) {
         float tileW = 32f;
         float tileH = 16f;
@@ -292,7 +400,6 @@ public class Player {
         float mouseCartesianX = (a + b) / 2f;
         float mouseCartesianY = (b - a) / 2f;
 
-        // O ângulo agora leva em consideração a verdadeira origem do corpo do jogador
         float deltaX = mouseCartesianX - origemX;
         float deltaY = mouseCartesianY - origemY;
 
@@ -328,24 +435,19 @@ public class Player {
 
             posicaoMundo.x += inputDirecao.x * moveSpeed;
             atualizarHitbox();
-            // Agora verifica colisão geral (mapa + boss)
             if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.x = oldX;
 
             posicaoMundo.y += inputDirecao.y * moveSpeed;
             atualizarHitbox();
-            // Agora verifica colisão geral (mapa + boss)
             if (verificaColisoes(hitboxesMapa, hitboxBoss)) posicaoMundo.y = oldY;
         }
     }
 
     private boolean verificaColisoes(Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss) {
-        // 1. Verifica colisão com as paredes/mapa
         for (Rectangle rect : hitboxesMapa) {
             if (hitbox.overlaps(rect)) return true;
         }
 
-        // 2. Verifica colisão com o corpo do boss
-        // (A checagem != null previne crash caso o boss ainda não tenha spawnado ou já tenha morrido)
         if (hitboxBoss != null && hitbox.overlaps(hitboxBoss)) {
             return true;
         }
@@ -353,31 +455,58 @@ public class Player {
         return false;
     }
 
-    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos) {
+    public void atualizarLogicaAtaque(float delta, Array<Morcego> morcegos, Boss boss) {
         if (attackTimer < tempoRecargaAtaque) attackTimer += delta;
         if (attackTimer >= duracaoAtaque) estaAtacando = false;
 
+        // Ataque Leve
         if (estaAtacando && !danoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
                     morcego.tomarDano();
                 }
             }
+            if (boss != null && !boss.isDead && hitboxAtaque.overlaps(boss.hitbox)) {
+                boss.tomarDano(1);
+            }
             danoAplicado = true;
         }
 
-        // Ataque pesado
         if (attackPesadoTimer < tempoRecargaAtaquePesado) attackPesadoTimer += delta;
         if (attackPesadoTimer >= duracaoAtaquePesado) estaAtacandoPesado = false;
 
+        // Ataque Pesado
         if (estaAtacandoPesado && !danoPesadoAplicado) {
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaquePesado.overlaps(morcego.hitboxColisao)) {
-                    morcego.tomarDano(); // Aplique x2 caso queira dar o dobro de dano
+                    morcego.tomarDano();
                     morcego.tomarDano();
                 }
             }
+            if (boss != null && !boss.isDead && hitboxAtaquePesado.overlaps(boss.hitbox)) {
+                boss.tomarDano(2);
+            }
             danoPesadoAplicado = true;
+        }
+    }
+
+    // --- FUNÇÃO PARA TOMAR DANO ---
+    public void tomarDano(int dano) {
+        if (isDead) return;
+
+        vida -= dano;
+
+        if (vida <= 0) {
+            vida = 0;
+            isDead = true;
+            stateTime = 0f; // Reseta o tempo para iniciar a animação de morte
+
+            // Interrompe qualquer ação atual
+            estaRolando = false;
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaCurando = false;
+            estaEmMovimento = false;
         }
     }
 
@@ -385,8 +514,13 @@ public class Player {
         stateTime += delta;
         TextureRegion currentFrame;
 
-        // PRIORIDADE DE RENDERIZAÇÃO
-        if (estaCurando) {
+        // --- RENDERIZAÇÃO DA MORTE ---
+        if (isDead) {
+            Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
+            if (anim == null) anim = deathAnimations.get("SE");
+            currentFrame = anim.getKeyFrame(stateTime, false); // "false" trava no último frame
+
+        } else if (estaCurando) {
             Animation<TextureRegion> anim = healAnimations.get(direcaoAtual);
             if (anim == null) anim = healAnimations.get("SE");
             currentFrame = anim.getKeyFrame(healTimer, false);
@@ -427,7 +561,6 @@ public class Player {
             currentFrame = animacaoIdleCerta.getKeyFrame(stateTime, true);
         }
 
-        // --- SISTEMA DE ESCALA VISUAL (80%) ---
         float escalaVisual = 0.8f;
 
         renderObj.textura = currentFrame;
@@ -452,5 +585,15 @@ public class Player {
             posicaoMundo.x + hitbox.width,
             posicaoMundo.y + hitbox.height
         );
+    }
+
+    public boolean isAnimacaoMorteTerminada() {
+        if (!isDead) return false;
+
+        Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
+        if (anim == null) anim = deathAnimations.get("SE");
+
+        // Verifica se o tempo atual do stateTime já ultrapassou o tempo total da animação
+        return anim.isAnimationFinished(stateTime);
     }
 }

@@ -15,13 +15,13 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.MapLayer;
+import com.badlogic.gdx.maps.MapObject;
+import com.badlogic.gdx.maps.objects.PolygonMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.IsometricTiledMapRenderer;
-import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.*;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -78,10 +78,24 @@ public class GameScreen implements Screen {
     PlayerController playerController;
     private Texture uiIconAtaqueLeve;
     private Texture uiIconAtaquePesado;
+    private Texture uiIconCorrida;
+    private Texture uiIconCura;
     private Texture uiIconDash;
     private Texture uiFrame;
     private Texture uiSombraCooldown;
 
+    // Ícones dos botões de acionamento
+    private Texture btnMouseEsq;
+    private Texture btnMouseDir;
+    private Texture btnEspaco;
+    private Texture btnTecla1;
+    private Texture btnShift;
+
+    // Variáveis da Barra de Vida
+    private Texture uiHealthBarSheet;
+    private TextureRegion[] uiHealthBarFrames;
+
+    // --- LUZ E FOG ---
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
     Texture lightBrush;
@@ -112,9 +126,32 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
+    // --- VARIÁVEIS DA MÚSICA E GATILHOS ---
     private Music musicaFundo;
+    private Music musicaBoss;
+    private float volumeFundo = 1.0f;
+    private float volumeBoss = 0f;
+    Array<Polygon> gatilhosMusicaBoss = new Array<>();
 
     Boss boss;
+
+    // Variáveis para a transição de morte
+    private boolean iniciandoMorte = false;
+    private float alphaMorte = 0f;
+    private Texture pixelPretoTransicao;
+
+    // --- VARIÁVEIS DA CUTSCENE DO BOSS ---
+    Polygon gatilhoEntradaBoss;
+    private boolean cutsceneIniciada = false;
+    private boolean cutsceneAndando = false;
+    private float timerBossAcordar = 0f;
+    private boolean bossAcordou = false;
+
+    // Controles da Parede de Teia
+    private Texture textureParedeTeia;
+    private boolean portaFechada = false;
+    private Rectangle hitboxPorta;
+    private ObjetoRenderizavel portaRenderizavel;
 
     public GameScreen(final JogoIsometrico game) {
         this.game = game;
@@ -131,18 +168,25 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
+        // INICIALIZAÇÃO DOS ÁUDIOS
         musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
         musicaFundo.setLooping(true);
-        musicaFundo.setVolume(1.2f);
+        musicaFundo.setVolume(volumeFundo);
         musicaFundo.play();
+
+        musicaBoss = game.assets.get("sons/Boss_music.mp3", Music.class);
+        musicaBoss.setLooping(true);
+        musicaBoss.setVolume(volumeBoss);
 
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(Color.BLACK);
         pixmap.fill();
         pixelPreto = new Texture(pixmap);
+        pixelPretoTransicao = new Texture(pixmap);
         pixmap.dispose();
 
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
+        textureParedeTeia = game.assets.get("mapa/Objetos_Cenario/parede_teia.png", Texture.class);
 
         // 1. O loop agora varre automaticamente todas as camadas existentes ("ground", "limites_mapa", "paredes")
         // transladando todas para a esquerda de forma uníssona para manter alinhamento perfeito.
@@ -254,6 +298,54 @@ public class GameScreen implements Screen {
             }
         }
 
+        MapLayer layerGatilhos = mapaTiled.getLayers().get("Gatilhos");
+        if (layerGatilhos != null) {
+            for (MapObject objeto : layerGatilhos.getObjects()) {
+                // AGORA LÊ POLÍGONOS!
+                if (objeto instanceof PolygonMapObject) {
+                    Object propMusica = objeto.getProperties().get("musica");
+                    // Proteção caso tenha escrito com 'M' maiúsculo no Tiled
+                    if (propMusica == null) propMusica = objeto.getProperties().get("Musica");
+
+                    if (propMusica != null && "boss".equalsIgnoreCase(propMusica.toString().trim())) {
+                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
+
+                        // Pega os pontos do polígono já convertidos para o ponto x,y dele no Tiled
+                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
+                        float[] verticesFisica = new float[verticesTiled.length];
+
+                        // Converte cada ponto do polígono para a nossa matemática física!
+                        for (int i = 0; i < verticesTiled.length; i += 2) {
+                            float pX = verticesTiled[i];
+                            float pY = verticesTiled[i + 1];
+
+                            float tX = pX / tile_height;
+                            float tY = pY / tile_height;
+
+                            verticesFisica[i] = tY;        // worldX = TiledY
+                            verticesFisica[i + 1] = -tX;   // worldY = -TiledX
+                        }
+
+                        gatilhosMusicaBoss.add(new Polygon(verticesFisica));
+                    }
+
+                    Object propEntrada = objeto.getProperties().get("entradaBoss");
+                    if (propEntrada != null && (Boolean)propEntrada) {
+                        PolygonMapObject polyObj = (PolygonMapObject) objeto;
+                        float[] verticesTiled = polyObj.getPolygon().getTransformedVertices();
+                        float[] verticesFisica = new float[verticesTiled.length];
+
+                        // Mesma conversão de escala que você usou para o gatilho da música
+                        for (int i = 0; i < verticesTiled.length; i += 2) {
+                            verticesFisica[i] = verticesTiled[i + 1] / tile_height;
+                            verticesFisica[i + 1] = -(verticesTiled[i] / tile_height);
+                        }
+                        gatilhoEntradaBoss = new Polygon(verticesFisica);
+                    }
+                }
+            }
+        }
+
         lightBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, (int)viewport_width, (int)viewport_height, false);
         lightBufferRegion = new TextureRegion(lightBuffer.getColorBufferTexture());
         lightBufferRegion.flip(false, true);
@@ -262,7 +354,7 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(75f, -20f);
+        Vector2 posicaoInicial = new Vector2(60f, -58f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
@@ -275,11 +367,31 @@ public class GameScreen implements Screen {
 
         portraitAephorul = new Texture("portrait/dialog-portrait-Aephorul-Angry.png");
 
-        // HUD Abilidades
+        // HUD Habilidades
         uiIconAtaqueLeve = game.assets.get("skills/ataque_leve_icon.png", Texture.class);
         uiIconAtaquePesado = game.assets.get("skills/ataque_pesado_icon.png", Texture.class);
+        uiIconCorrida = game.assets.get("skills/corrida_icon.png", Texture.class);
+        uiIconCura = game.assets.get("skills/cura_icon.png", Texture.class);
         uiIconDash = game.assets.get("skills/dash_icon.png", Texture.class);
         uiFrame = game.assets.get("skills/frame_icon.png", Texture.class);
+        // --- ÍCONES DOS BOTÕES ---
+        btnMouseEsq = game.assets.get("skills/mouse_esq_icon.png", Texture.class);
+        btnMouseDir = game.assets.get("skills/mouse_dir_icon.png", Texture.class);
+        btnEspaco = game.assets.get("skills/espaco_icon.png", Texture.class);
+        btnTecla1 = game.assets.get("skills/tecla1_icon.png", Texture.class);
+        btnShift = game.assets.get("skills/shift_icon.png", Texture.class);
+
+        // Inicialização e fatiamento da Barra de Vida
+        uiHealthBarSheet = game.assets.get("personagem/Health_Bar.png", Texture.class);
+        uiHealthBarFrames = new TextureRegion[6];
+
+        // Divide a textura inteira por 6 para descobrir a largura exata de 1 frame
+        int frameWidth = uiHealthBarSheet.getWidth() / 6;
+        int frameHeight = uiHealthBarSheet.getHeight();
+
+        for (int i = 0; i < 6; i++) {
+            uiHealthBarFrames[i] = new TextureRegion(uiHealthBarSheet, i * frameWidth, 0, frameWidth, frameHeight);
+        }
 
         // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -329,6 +441,13 @@ public class GameScreen implements Screen {
             return false;
         }
 
+        if (player.isDead) {
+            // Se morreu, dispara a transição apenas uma vez
+            if (!iniciandoMorte) {
+                iniciandoMorte = true;
+            }
+        }
+
         if (playerController.consumeFullscreenToggle()) {
             if (Gdx.graphics.isFullscreen()) Gdx.graphics.setWindowedMode(1280, 720);
             else Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
@@ -356,6 +475,44 @@ public class GameScreen implements Screen {
     }
 
     private void logic(float delta) {
+        // LÓGICA DA CUTSCENE DO BOSS ---
+
+        // 1. Verifica se o player pisou na entrada
+        if (!cutsceneIniciada && gatilhoEntradaBoss != null) {
+            float centroX = player.hitbox.x + (player.hitbox.width / 2f);
+            float centroY = player.hitbox.y + (player.hitbox.height / 2f);
+
+            if (gatilhoEntradaBoss.contains(centroX, centroY)) {
+                cutsceneIniciada = true;
+                cutsceneAndando = true;
+                player.emCutscene = true;
+                // Define o ponto alvo que você pediu
+                player.destinoCutscene.set(66f, -31f);
+            }
+        }
+
+        // 2. Controla o andamento do player e o timer
+        if (cutsceneAndando) {
+            // Se o player chegou muito perto do destino (0.3f de tolerância)
+            if (player.posicaoMundo.dst(player.destinoCutscene) <= 0.3f) {
+                cutsceneAndando = false;
+                player.emCutscene = false; // Devolve os controles ao jogador
+
+                // Opcional: Faz o jogador olhar para noroeste (onde o boss está) ao chegar no ponto
+                player.direcaoAtual = "NW";
+
+                timerBossAcordar = 1.5f; // Dispara o cronômetro do boss
+            }
+        } else if (cutsceneIniciada && !bossAcordou) {
+            timerBossAcordar -= delta;
+            if (timerBossAcordar <= 0f) {
+                bossAcordou = true;
+                if (boss != null) boss.isAtivo = true;
+                fecharPortaBoss();
+            }
+        }
+        // --- FIM DA CUTSCENE ---
+
         // --- SISTEMA DE INTERAÇÃO ---
         pertoDoCristal = false;
 
@@ -373,30 +530,67 @@ public class GameScreen implements Screen {
         }
         // -----------------------------
 
-        player.atualizarLogicaAtaque(delta, morcegos);
+        // --- SISTEMA DE CROSSFADE DA MÚSICA ---
+        boolean naSalaDoBoss = false;
+        float centroX = player.hitbox.x + (player.hitbox.width / 2f);
+        float centroY = player.hitbox.y + (player.hitbox.height / 2f);
+
+        for (Polygon gatilho : gatilhosMusicaBoss) {
+            if (gatilho.contains(centroX, centroY)) {
+                naSalaDoBoss = true;
+                break;
+            }
+        }
+
+        // --- AQUI ESTÁ A NOVA CONDIÇÃO ---
+        // Se o boss já morreu, forçamos o sistema a achar que a sala do boss "acabou",
+        // fazendo o crossfade retornar para a música normal.
+        if (boss != null && boss.isDead) {
+            naSalaDoBoss = false;
+
+            if (portaFechada) {
+                portaFechada = false;
+                hitboxesMapa.removeValue(hitboxPorta, true);
+                elementosMapaRenderizaveis.removeValue(portaRenderizavel, true);
+            }
+        }
+
+        float velocidadeFade = 1.0f * delta; // Velocidade da transição (1 segundo para trocar)
+
+        if (naSalaDoBoss) {
+            if (!musicaBoss.isPlaying()) musicaBoss.play();
+            // Aumenta o Boss, diminui a Caverna (Limitado em 0.1f conforme o seu original)
+            volumeBoss = Math.min(0.1f, volumeBoss + velocidadeFade);
+            volumeFundo = Math.max(0f, volumeFundo - velocidadeFade);
+        } else {
+            if (!musicaFundo.isPlaying()) musicaFundo.play();
+            // Aumenta a Caverna, diminui o Boss (Limitado em 1.0f)
+            volumeFundo = Math.min(1.0f, volumeFundo + velocidadeFade);
+            volumeBoss = Math.max(0f, volumeBoss - velocidadeFade);
+        }
+
+        musicaFundo.setVolume(volumeFundo);
+        musicaBoss.setVolume(volumeBoss);
+
+        // Pausa a música que ficou totalmente muda para economizar CPU
+        if (volumeFundo <= 0f && musicaFundo.isPlaying()) musicaFundo.pause();
+        if (volumeBoss <= 0f && musicaBoss.isPlaying()) musicaBoss.pause();
+        // ----------------------------------------
+
+        player.atualizarLogicaAtaque(delta, morcegos, boss);
 
         if (boss != null) {
-            boss.update(delta, player.posicaoMundo, player.hitbox, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+            boss.update(delta, player, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
 
-            // --- CHECAGEM DE COLISÃO: TEIAS VS PLAYER ---
             for (TeiaProjetil teia : boss.teiasAtivas) {
                 if (teia.hitbox.overlaps(player.hitbox)) {
 
                     if (teia.voando) {
-                        // 1. O projetil bateu no player enquanto voava!
-                        // Aqui você chama o método de dano do seu player. Exemplo:
-                        // player.tomarDano(15);
-
-                        // Força a teia a cair no chão imediatamente onde acertou o player
                         teia.voando = false;
                         teia.stateTime = 0f;
                         teia.posicaoMundo.set(player.posicaoMundo);
                         teia.hitbox.setPosition(teia.posicaoMundo.x, teia.posicaoMundo.y);
-                    }
-                    else {
-                        // 2. A teia já está no chão e o player pisou nela (Armadilha)
-                        // Aqui você pode aplicar um status de lentidão. Exemplo:
-                        // player.aplicarLentidao(delta);
+                        player.tomarDano(1);
                     }
                 }
             }
@@ -436,8 +630,6 @@ public class GameScreen implements Screen {
         viewport.apply();
 
         mapRenderer.setView(camera);
-        // O render() do IsometricTiledMapRenderer empilha perfeitamente e desenha
-        // o "ground", o "limites_mapa" e as "paredes" obedecendo a ordem e a transparência.
         mapRenderer.render();
 
         batch.setProjectionMatrix(camera.combined);
@@ -446,6 +638,8 @@ public class GameScreen implements Screen {
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
+        // Opcional: Garantir que o player não receba cor residual
+        player.renderObj.color = Color.WHITE;
         listaDeDesenho.add(player.renderObj);
 
         for (Morcego morcego : morcegos) {
@@ -453,6 +647,7 @@ public class GameScreen implements Screen {
             float mScreenY = (morcego.posicaoMundo.x + morcego.posicaoMundo.y) * (tile_height / 2f);
             morcego.prepararZSorting(mScreenX, mScreenY);
             morcego.renderObj.alpha = 1f;
+            morcego.renderObj.color = Color.WHITE;
             listaDeDesenho.add(morcego.renderObj);
         }
 
@@ -462,9 +657,14 @@ public class GameScreen implements Screen {
                 ObjetoRenderizavel bossRender = new ObjetoRenderizavel();
                 bossRender.textura = frame;
                 bossRender.drawX = boss.getScreenX() - (frame.getRegionWidth() / 2f);
-                bossRender.drawY = boss.getScreenY() - 175f; // + ajuste fino se precisar
+                bossRender.drawY = boss.getScreenY() - 175f;
                 bossRender.sortY = boss.getScreenY();
                 bossRender.alpha = 1f;
+
+                // --- AQUI ---
+                // Copiamos a cor exata que está sendo calculada pela classe Boss
+                bossRender.color = boss.renderObj.color != null ? boss.renderObj.color : Color.WHITE;
+
                 bossRender.isElementoMapa = false;
                 listaDeDesenho.add(bossRender);
             }
@@ -480,40 +680,29 @@ public class GameScreen implements Screen {
                     ObjetoRenderizavel teiaRender = new ObjetoRenderizavel();
                     teiaRender.textura = frameTeia;
                     teiaRender.drawX = tScreenX - (frameTeia.getRegionWidth() / 2f);
-                    teiaRender.drawY = tScreenY - 0f; // Ajuste fino da altura isométrica
-
+                    teiaRender.drawY = tScreenY - 0f;
                     teiaRender.sortY = tScreenY;
                     teiaRender.alpha = 1f;
+                    teiaRender.color = Color.WHITE;
                     teiaRender.isElementoMapa = false;
                     listaDeDesenho.add(teiaRender);
                 }
             }
         }
 
-        // --- INÍCIO DA ALTERAÇÃO: CAMERA CULLING (OTIMIZAÇÃO) ---
-
-        // 1. Definimos uma margem de segurança (em pixels) para que texturas grandes
-        // não desapareçam de forma brusca quando o centro delas sair da tela.
+        // --- CULLING ---
         float margemCulling = 1024f;
-
-        // 2. Calculamos as bordas da visão atual da câmera no mundo
         float cameraEsquerda = camera.position.x - (viewport.getWorldWidth() / 2f) - margemCulling;
         float cameraDireita  = camera.position.x + (viewport.getWorldWidth() / 2f) + margemCulling;
         float cameraBaixo    = camera.position.y - (viewport.getWorldHeight() / 2f) - margemCulling;
         float cameraCima     = camera.position.y + (viewport.getWorldHeight() / 2f) + margemCulling;
 
-        // 3. Adiciona apenas os elementos que estão dentro da visão da câmera
         for (ObjetoRenderizavel elementoMapa : elementosMapaRenderizaveis) {
-
-            // Checagem AABB (Axis-Aligned Bounding Box) ultra rápida
             if (elementoMapa.drawX >= cameraEsquerda && elementoMapa.drawX <= cameraDireita &&
                 elementoMapa.drawY >= cameraBaixo    && elementoMapa.drawY <= cameraCima) {
-
                 listaDeDesenho.add(elementoMapa);
             }
         }
-
-        // --- FIM DA ALTERAÇÃO ---
 
         listaDeDesenho.sort(zIndexComparator);
 
@@ -522,7 +711,15 @@ public class GameScreen implements Screen {
                 obj.textura = obj.tile.getTextureRegion();
             }
             if (obj.textura != null) {
-                batch.setColor(1f, 1f, 1f, obj.alpha);
+
+                // --- AQUI ---
+                // Aplicamos a cor da entidade ao SpriteBatch.
+                // A cor contém valores normalizados R, G, B e o Alpha.
+                if (obj.color != null) {
+                    batch.setColor(obj.color.r, obj.color.g, obj.color.b, obj.alpha);
+                } else {
+                    batch.setColor(1f, 1f, 1f, obj.alpha);
+                }
 
                 if (obj.isTransformado) {
                     batch.draw(obj.textura, obj.drawX, obj.drawY,
@@ -537,6 +734,8 @@ public class GameScreen implements Screen {
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 
+        // O restante do método (luzes, hitboxes, HUD, etc) continua inalterado daqui para baixo...
+
         lightBuffer.begin();
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -545,9 +744,6 @@ public class GameScreen implements Screen {
         batch.begin();
         batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
 
-        // --- INÍCIO DA ALTERAÇÃO DAS LUZES ---
-
-        // 1. Pinta o SpriteBatch de Vermelho
         batch.setColor(1f, 0.2f, 0.2f, 1f);
         float raioLuzPoste = 350f;
         for (Vector2 posLuz : luzesVermelhas) {
@@ -556,21 +752,16 @@ public class GameScreen implements Screen {
             batch.draw(lightBrush, lx, ly, raioLuzPoste, raioLuzPoste);
         }
 
-        // 2. Pinta o SpriteBatch de Azul (R=0.2, G=0.4, B=1.0)
         batch.setColor(0.2f, 0.4f, 1f, 1f);
-        float raioLuzCristal = 400f; // Cristais iluminam uma área menor
+        float raioLuzCristal = 400f;
         for (Vector2 posLuz : luzesAzuis) {
             float lx = posLuz.x - (raioLuzCristal / 2f);
             float ly = posLuz.y - (raioLuzCristal / 2f);
             batch.draw(lightBrush, lx, ly, raioLuzCristal, raioLuzCristal);
         }
 
-        // 3. RETORNA a cor para Branco para a luz do jogador não bugar!
         batch.setColor(Color.WHITE);
 
-        // --- FIM DA ALTERAÇÃO DAS LUZES ---
-
-        // Mantendo seu raio de visão gigante
         float raioVisao = 700f;
         float luzX = screenX - (raioVisao / 2f);
         float luzY = screenY - (raioVisao / 2f) + (tile_height);
@@ -598,6 +789,22 @@ public class GameScreen implements Screen {
                 desenharRetanguloIsometrico(mapRect, shapeRenderer);
             }
 
+            shapeRenderer.setColor(Color.CYAN);
+            for (Polygon gatilho : gatilhosMusicaBoss) {
+                float[] vFisica = gatilho.getVertices();
+                float[] vTela = new float[vFisica.length];
+
+                for (int i = 0; i < vFisica.length; i += 2) {
+                    float px = vFisica[i];
+                    float py = vFisica[i+1];
+
+                    vTela[i] = (px - py) * (tile_width / 2f);
+                    vTela[i+1] = -(px + py) * (tile_height / 2f);
+                }
+
+                shapeRenderer.polygon(vTela);
+            }
+
             shapeRenderer.setColor(Color.RED);
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo) desenharRetanguloIsometrico(morcego.hitboxColisao, shapeRenderer);
@@ -606,14 +813,8 @@ public class GameScreen implements Screen {
             shapeRenderer.setColor(Color.YELLOW);
             if (boss != null) {
                 desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
-            }
 
-            shapeRenderer.setColor(Color.YELLOW);
-            if (boss != null) {
-                desenharRetanguloIsometrico(boss.hitbox, shapeRenderer);
-
-                // --- DESENHA A HITBOX DAS TEIAS ---
-                shapeRenderer.setColor(Color.CYAN); // Cor ciano para as teias
+                shapeRenderer.setColor(Color.CYAN);
                 for (TeiaProjetil teia : boss.teiasAtivas) {
                     desenharRetanguloIsometrico(teia.hitbox, shapeRenderer);
                 }
@@ -652,6 +853,41 @@ public class GameScreen implements Screen {
                     shapeRenderer.rect(barraX, barraY, larguraBarra * proporcaoVida, alturaBarra);
                 }
             }
+
+            if (boss != null && !boss.isDead) {
+                float bScreenX = boss.getScreenX();
+                float bScreenY = boss.getScreenY();
+
+                float larguraBarraBoss = 60f;
+                float alturaBarraBoss = 6f;
+                float barraBossX = bScreenX - (larguraBarraBoss / 2f);
+                float barraBossY = bScreenY + 40f;
+
+                shapeRenderer.setColor(Color.RED);
+                shapeRenderer.rect(barraBossX, barraBossY, larguraBarraBoss, alturaBarraBoss);
+
+                shapeRenderer.setColor(Color.GREEN);
+                float proporcaoVidaBoss = Math.max(0, (float) boss.vida / boss.vidaMaxima);
+                shapeRenderer.rect(barraBossX, barraBossY, larguraBarraBoss * proporcaoVidaBoss, alturaBarraBoss);
+            }
+
+            if (!player.isDead) {
+                float pScreenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
+                float pScreenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
+
+                float larguraBarraPlayer = 40f;
+                float alturaBarraPlayer = 5f;
+                float barraPlayerX = pScreenX - (larguraBarraPlayer / 2f);
+                float barraPlayerY = pScreenY + 40f; // Ajuste acima da cabeça
+
+                shapeRenderer.setColor(Color.RED);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer, alturaBarraPlayer);
+
+                shapeRenderer.setColor(Color.GREEN);
+                float proporcaoVidaPlayer = Math.max(0, (float) player.vida / player.vidaMaxima);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer * proporcaoVidaPlayer, alturaBarraPlayer);
+            }
+
             shapeRenderer.end();
         }
 
@@ -672,11 +908,8 @@ public class GameScreen implements Screen {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
 
-        // --- INTERFACE DE USUÁRIO (HUD) ---
         uiViewport.apply();
         batch.setProjectionMatrix(uiCamera.combined);
-
-        // 1. ABRE A CANETA UMA ÚNICA VEZ PARA TODA A UI
         batch.begin();
 
         if (pertoDoCristal && !mostrandoMensagemMagica) {
@@ -685,13 +918,9 @@ public class GameScreen implements Screen {
         }
 
         if (mostrandoMensagemMagica) {
-            // Desenha o Fundo Escuro
             batch.setColor(1f, 1f, 1f, 0.8f);
             batch.draw(pixelPreto, 50, 50, uiViewport.getWorldWidth() - 100, 150);
-
-            // Retorna a cor para branco ANTES de desenhar o portrait e o texto
             batch.setColor(Color.WHITE);
-
             batch.draw(portraitAephorul, 60, 60, 320, 320);
 
             font.setColor(Color.FIREBRICK);
@@ -706,7 +935,6 @@ public class GameScreen implements Screen {
             font.draw(batch, "Samuel Grontoski", uiViewport.getWorldWidth() / 2, (uiViewport.getWorldHeight() / 2) + 80);
         }
 
-        // 2. DEBUG INFO (Removemos o begin() e end() que causavam o erro)
         if (mostrarDebugInfo) {
             String textoOverlay = String.format(
                 "FPS: %d\nPOS MUNDO:\nX: %.2f | Y: %.2f\nPOS TELA:\nX: %.1f | Y: %.1f",
@@ -715,12 +943,8 @@ public class GameScreen implements Screen {
             font.setColor(Color.GREEN);
             font.draw(batch, textoOverlay, 15, uiViewport.getWorldHeight() - 300);
         }
-
-        // 3. FECHA A CANETA DA UI
         batch.end();
 
-
-        // --- CORTINA DE ILUMINAÇÃO (FADE IN DO JOGO) ---
         if (transicaoAlpha > 0f) {
             transicaoAlpha -= delta * VELOCIDADE_FADE;
             if (transicaoAlpha < 0f) transicaoAlpha = 0f;
@@ -731,7 +955,6 @@ public class GameScreen implements Screen {
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-            // Como fechamos o batch ali em cima, podemos abrir este com segurança!
             batch.begin();
             batch.setColor(1f, 1f, 1f, transicaoAlpha);
             batch.draw(pixelPreto, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
@@ -739,33 +962,117 @@ public class GameScreen implements Screen {
             batch.end();
         }
 
-        // HUD de skills
         batch.begin();
-
         game.batch.setProjectionMatrix(uiViewport.getCamera().combined);
-        game.batch.setColor(Color.WHITE); // Garante que a UI não herde nenhuma cor de dano/luz
+        game.batch.setColor(Color.WHITE);
 
-        // Configurações de layout fixas baseadas no tamanho virtual da sua uiViewport (640x360)
-        float slotSize = 48f;
+        float slotSize = 60f;
         float espacamento = 10f;
         float margemDireita = 60f;
         float margemInferior = 20f;
+        float margemEsquerda = 60f;
+
+        int indexVida = MathUtils.clamp(player.vida, 0, 5);
+        TextureRegion currentHealthFrame = uiHealthBarFrames[indexVida];
+
+        float escalaBarra = 4f;
+        float barraWidth = currentHealthFrame.getRegionWidth() * escalaBarra;
+        float barraHeight = currentHealthFrame.getRegionHeight() * escalaBarra;
+
+        game.batch.draw(currentHealthFrame, margemEsquerda, margemInferior, barraWidth, barraHeight);
 
         // Calcula posições X da direita para a esquerda
-        float xDash = uiViewport.getWorldWidth() - margemDireita - slotSize;
-        float xPesado = xDash - slotSize - espacamento;
+        float xCorrida = uiViewport.getWorldWidth() - margemDireita - slotSize;
+        float xCura = xCorrida - slotSize - espacamento;
+        float xRoll = xCura - slotSize - espacamento;
+        float xPesado = xRoll - slotSize - espacamento;
         float xLeve = xPesado - slotSize - espacamento;
         float uiY = margemInferior;
 
         // Calcula as porcentagens de recarga atualizadas (0.0 a 1.0)
+        float porcCura = (player.curasAtuais > 0) ? MathUtils.clamp(player.cooldownCuraTimer / player.tempoRecargaCura, 0f, 1f) : 0f;
         float porcLeve = MathUtils.clamp(player.attackTimer / player.tempoRecargaAtaque, 0f, 1f);
         float porcPesado = MathUtils.clamp(player.attackPesadoTimer / player.tempoRecargaAtaquePesado, 0f, 1f);
-        float porcDash = MathUtils.clamp(player.cooldownRollTimer / player.tempoRecargaRoll, 0f, 1f);
+        float porcRoll = MathUtils.clamp(player.cooldownRollTimer / player.tempoRecargaRoll, 0f, 1f);
 
-        // Desenha os três slots com os ícones correspondentes
+        // Desenha os slots com os ícones correspondentes
         desenharSlotHabilidade(uiIconAtaqueLeve, uiFrame, xLeve, uiY, slotSize, porcLeve);
         desenharSlotHabilidade(uiIconAtaquePesado, uiFrame, xPesado, uiY, slotSize, porcPesado);
-        desenharSlotHabilidade(uiIconDash, uiFrame, xDash, uiY, slotSize, porcDash);
+        desenharSlotHabilidade(uiIconDash, uiFrame, xRoll, uiY, slotSize, porcRoll);
+        desenharSlotHabilidade(uiIconCura, uiFrame, xCura, uiY, slotSize, porcCura);
+        desenharSlotHabilidade(uiIconCorrida, uiFrame, xCorrida, uiY, slotSize, 1f);
+
+        // --- DESENHA O CONTADOR DE CURAS ---
+        // Usamos a fonte já existente para escrever sutilmente no canto inferior direito do ícone
+        font.getData().setScale(1.2f); // tamanho da fonte
+        font.setColor(Color.WHITE);
+
+        // A string que será desenhada (ex: "2", "1" ou "0")
+        String textoCura = String.valueOf(player.curasAtuais);
+        float textX = xCura + slotSize - 20f;
+        float textY = uiY + 24f;
+        font.draw(game.batch, textoCura, textX, textY);
+
+        // Restaura a escala e cor para não afetar outras coisas que usem a fonte
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+
+        // Tamanho padrão dos botões quadrados (Q, Mouse, etc)
+        float btnSize = 24f;
+
+        // Se a sua imagem do espaço ou do shift for retangular (mais comprida),
+        // você pode ajustar essas larguras específicas abaixo:
+        float btnWidthShift = 36f;
+        float btnWidthEspaco = 40f;
+
+        // Distância vertical: Começa onde a skill está (uiY) + a altura da skill (slotSize) + uma margem de 5 pixels
+        float btnY = uiY + slotSize + 5f;
+
+        // Desenha Mouse Esquerdo (Ataque Leve)
+        float xBtnEsq = xLeve + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnMouseEsq, xBtnEsq, btnY, btnSize, btnSize);
+
+        // Desenha Mouse Direito (Ataque Pesado)
+        float xBtnDir = xPesado + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnMouseDir, xBtnDir, btnY, btnSize, btnSize);
+
+        // Desenha Espaço (Dash) - Usando a largura ajustável
+        float xBtnEspaco = xRoll + (slotSize / 2f) - (btnWidthEspaco / 2f);
+        game.batch.draw(btnEspaco, xBtnEspaco, btnY, btnWidthEspaco, btnSize);
+
+        // Desenha Tecla 1 (Cura)
+        float xBtn1 = xCura + (slotSize / 2f) - (btnSize / 2f);
+        game.batch.draw(btnTecla1, xBtn1, btnY, btnSize, btnSize);
+
+        // Desenha Shift (Corrida) - Usando a largura ajustável
+        float xBtnShift = xCorrida + (slotSize / 2f) - (btnWidthShift / 2f);
+        game.batch.draw(btnShift, xBtnShift, btnY, btnWidthShift, btnSize);
+
+        // Efeito de Fade Out ao morrer
+        if (iniciandoMorte) {
+
+            // Só começa a escurecer a tela SE a animação do player terminou
+            if (player.isAnimacaoMorteTerminada()) {
+
+                alphaMorte += delta * 1.0f;
+
+                // O SpriteBatch JÁ ESTÁ ABERTO aqui! Não precisamos chamar begin() de novo.
+                // A transparência (Blend) também já é nativa do SpriteBatch.
+
+                // Apenas tingimos o batch de preto com Alpha e desenhamos o retângulo
+                game.batch.setColor(0f, 0f, 0f, Math.min(alphaMorte, 1f));
+                game.batch.draw(pixelPretoTransicao, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
+
+                // Restaura a cor do batch para branco para não afetar os frames seguintes
+                game.batch.setColor(Color.WHITE);
+
+                // Quando a tela estiver 100% preta, muda de tela
+                if (alphaMorte >= 1.05f) {
+                    game.setScreen(new TelaMorte(game));
+                    dispose();
+                }
+            }
+        }
 
         batch.end();
     }
@@ -776,6 +1083,46 @@ public class GameScreen implements Screen {
         Morcego m = morcegoPool.obtain();
         m.init(new Vector2(px, py), textureMorcegoFly);
         morcegos.add(m);
+    }
+
+    private void fecharPortaBoss() {
+        if (gatilhoEntradaBoss == null) return;
+
+        portaFechada = true;
+
+        // 1. Cria a barreira física invisível baseada no polígono da entrada
+        Rectangle bounds = gatilhoEntradaBoss.getBoundingRectangle();
+        hitboxPorta = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Adiciona na lista geral de colisões (bloqueia o Player e o Boss de sair)
+        hitboxesMapa.add(hitboxPorta);
+
+        // 2. Cria a arte visual da teia para participar do Z-Sorting (Profundidade isométrica)
+        portaRenderizavel = new ObjetoRenderizavel();
+        portaRenderizavel.textura = new TextureRegion(textureParedeTeia);
+
+        // Encontra o centro matemático da entrada
+        float centroMundoX = bounds.x + (bounds.width / 2f);
+        float centroMundoY = bounds.y + (bounds.height / 2f);
+
+        // Converte para as coordenadas de tela Isométrica
+        float pScreenX = (centroMundoX - centroMundoY) * (tile_width / 2f);
+        float pScreenY = (centroMundoX + centroMundoY) * (tile_height / 2f);
+
+        // Centraliza a imagem da teia no eixo X
+        portaRenderizavel.drawX = pScreenX - (portaRenderizavel.textura.getRegionWidth() / 2f);
+        // O eixo Y pode precisar de um pequeno ajuste dependendo de quão alta é a sua imagem da teia
+        portaRenderizavel.drawY = pScreenY;
+
+        // Define a ordem de desenho para renderizar corretamente atrás ou na frente do player
+        portaRenderizavel.sortY = pScreenY;
+
+        portaRenderizavel.isElementoMapa = false;
+        portaRenderizavel.alpha = 1f;
+        portaRenderizavel.color = Color.WHITE;
+
+        // Adiciona ao cenário. O jogo passará a desenhar essa teia automaticamente!
+        elementosMapaRenderizaveis.add(portaRenderizavel);
     }
 
     private void desenharRetanguloIsometrico(Rectangle rect, ShapeRenderer sr) {
@@ -844,8 +1191,10 @@ public class GameScreen implements Screen {
         lightBrush.dispose();
         mapaTiled.dispose();
         pixelPreto.dispose();
+        pixelPretoTransicao.dispose();
         portraitAephorul.dispose();
         musicaFundo.stop();
+        musicaBoss.stop();
         if (uiSombraCooldown != null) uiSombraCooldown.dispose();
     }
 }
