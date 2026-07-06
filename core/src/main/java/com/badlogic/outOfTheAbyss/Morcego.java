@@ -20,8 +20,8 @@ public class Morcego implements Poolable {
     public float velocidade = 3.5f;
     public final float raio_de_agro = 10.0f;
     public boolean detectouPlayer = false;
-    public float attackCooldown = 1.0f; // Começa pronto para atacar
-    public final float tempo_recarga_ataque = 1.0f; // 1 segundo
+    public float attackCooldown = 1.0f;
+    public final float tempo_recarga_ataque = 1.0f;
 
     private Animation<TextureRegion> animacaoIdle;
     float localStateTime;

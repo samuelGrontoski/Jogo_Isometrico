@@ -3,7 +3,7 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.audio.Sound; // NOVO: Import do Sound
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.Align;
@@ -15,7 +15,7 @@ public class TelaMorte implements Screen {
     private final OrthographicCamera camera;
     private final Viewport viewport;
 
-    private Sound somMorte; // NOVO: Variável para guardar o som
+    private Sound somMorte;
 
     private enum Estado { FADE_IN, ESPERANDO_INPUT, FADE_OUT }
     private Estado estadoAtual = Estado.FADE_IN;
@@ -114,7 +114,5 @@ public class TelaMorte implements Screen {
 
     @Override
     public void dispose() {
-        // Sons gerenciados pelo AssetManager não precisam de dispose individual aqui,
-        // a JogoIsometrico.java cuida disso quando o jogo inteiro for fechado.
     }
 }

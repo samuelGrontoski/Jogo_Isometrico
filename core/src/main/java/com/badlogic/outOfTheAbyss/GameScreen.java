@@ -37,7 +37,6 @@ public class GameScreen implements Screen {
 
     OrthographicCamera camera;
     Viewport viewport;
-    // Mantendo sua alteração de raio de visão/viewport
     final float viewport_width = 640;
     final float viewport_height = 360;
 
@@ -95,7 +94,7 @@ public class GameScreen implements Screen {
     private Texture uiHealthBarSheet;
     private TextureRegion[] uiHealthBarFrames;
 
-    // --- LUZ E FOG ---
+    // Luz e Fog
     FrameBuffer lightBuffer;
     TextureRegion lightBufferRegion;
     Texture lightBrush;
@@ -115,7 +114,7 @@ public class GameScreen implements Screen {
     };
     private final float[] timersSpawnMorcegos = new float[posicoesSpawnMorcegos.length];
     private final Morcego[] morcegosNosSpawns = new Morcego[posicoesSpawnMorcegos.length];
-    private final float TEMPO_RESPAWN_MORCEGO = 60.0f; // 60 segundos
+    private final float TEMPO_RESPAWN_MORCEGO = 60.0f;
     private final Texture textureMorcegoFly;
 
     Array<ObjetoRenderizavel> elementosMapaRenderizaveis = new Array<>();
@@ -135,7 +134,7 @@ public class GameScreen implements Screen {
     private boolean mostrandoMensagemMagica = false;
     private Texture portraitAephorul;
 
-    // --- VARIÁVEIS DA MÚSICA E GATILHOS ---
+    // Variáveis da música e gatilhos
     private Music musicaFundo;
     private Music musicaBoss;
     private float volumeFundo = 1.0f;
@@ -149,7 +148,7 @@ public class GameScreen implements Screen {
     private float alphaMorte = 0f;
     private Texture pixelPretoTransicao;
 
-    // --- VARIÁVEIS DA CUTSCENE DO BOSS ---
+    // Variáveis da cutscene do boss
     Polygon gatilhoEntradaBoss;
     private boolean cutsceneIniciada = false;
     private boolean cutsceneAndando = false;
@@ -162,7 +161,7 @@ public class GameScreen implements Screen {
     private Rectangle hitboxPorta;
     private ObjetoRenderizavel portaRenderizavel;
 
-    // VARIÁVEIS DA SAÍDA / FIM DE JOGO ---
+    // Variáveis da saída / fim de jogo
     Array<Polygon> objetosSaida = new Array<>();
     private boolean pertoDaSaida = false;
     private boolean iniciandoFimDeJogo = false;
@@ -183,7 +182,6 @@ public class GameScreen implements Screen {
         uiCamera = new OrthographicCamera();
         uiViewport = new ScreenViewport(uiCamera);
 
-        // INICIALIZAÇÃO DOS ÁUDIOS
         musicaFundo = game.assets.get("sons/Go Down.wav", Music.class);
         musicaFundo.setLooping(true);
         musicaFundo.setVolume(volumeFundo);
@@ -203,15 +201,12 @@ public class GameScreen implements Screen {
         mapaTiled = game.assets.get("mapa/map_cave.tmx", TiledMap.class);
         textureParedeTeia = game.assets.get("mapa/Objetos_Cenario/parede_teia.png", Texture.class);
 
-        // 1. O loop agora varre automaticamente todas as camadas existentes ("ground", "limites_mapa", "paredes")
-        // transladando todas para a esquerda de forma uníssona para manter alinhamento perfeito.
         for (MapLayer layer : mapaTiled.getLayers()) {
             layer.setOffsetX(-tile_width / 2f);
         }
 
         mapRenderer = new IsometricTiledMapRenderer(mapaTiled, batch);
 
-        // 2. BUSCA DE COLISÕES: Modificado para ler estritamente os retângulos da camada de borda.
         limitesLayer = (TiledMapTileLayer) mapaTiled.getLayers().get("limites_mapa");
 
         if (limitesLayer != null) {
@@ -219,11 +214,8 @@ public class GameScreen implements Screen {
                 for (int row = 0; row < limitesLayer.getHeight(); row++) {
                     TiledMapTileLayer.Cell cell = limitesLayer.getCell(col, row);
                     if (cell != null && cell.getTile() != null) {
-                        // Verifica o boolean personalizado que você colocou no tileset de borda
                         Boolean hasCollider = cell.getTile().getProperties().get("collider", Boolean.class);
                         if (hasCollider != null && hasCollider) {
-
-                            // Traduz a coordenada da LibGDX para o seu mundo
                             float worldX = row;
                             float worldY = -col;
 
@@ -234,8 +226,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // 3. EXTRAÇÃO DE MÚLTIPLAS CAMADAS PARA O Z-SORTING (Algoritmo do Pintor)
-        // A ordem no Array dita a ordem de sobreposição física
         String[] camadasZSort = {"simbolos_sala_boss", "paredes", "Cristal", "Teias", "Objetos_Cenario"};
 
         for (int i = 0; i < camadasZSort.length; i++) {
@@ -271,7 +261,7 @@ public class GameScreen implements Screen {
                             }
 
                             obj.isElementoMapa = true;
-                            obj.zIndexMapa = i; // 0=Paredes, 1=Cristal, 2=Teias, 3=Objetos
+                            obj.zIndexMapa = i;
 
                             Boolean emiteLuzVermelha = cell.getTile().getProperties().get("emiteLuzVermelha", Boolean.class);
                             if (emiteLuzVermelha != null && emiteLuzVermelha) {
@@ -289,7 +279,6 @@ public class GameScreen implements Screen {
                             obj.flipY = cell.getFlipVertically();
                             obj.rotation = cell.getRotation();
 
-                            // NOVO: Pré-calcula TUDO na RAM durante a tela de loading.
                             obj.isTransformado = obj.flipX || obj.flipY || obj.rotation != 0;
                             if (obj.isTransformado) {
                                 obj.width = obj.textura.getRegionWidth();
@@ -311,9 +300,6 @@ public class GameScreen implements Screen {
         MapLayer layerGatilhos = mapaTiled.getLayers().get("Gatilhos");
         if (layerGatilhos != null) {
             for (MapObject objeto : layerGatilhos.getObjects()) {
-
-                // Cria a forma física de colisão, independentemente se você usou
-                // a ferramenta Polígono ou Retângulo no Tiled Map Editor!
                 Polygon polyFisica = null;
 
                 if (objeto instanceof PolygonMapObject) {
@@ -341,29 +327,28 @@ public class GameScreen implements Screen {
                     polyFisica = new Polygon(verticesFisica);
                 }
 
-                // Se conseguiu extrair a forma geométrica, checa o que ela faz:
                 if (polyFisica != null) {
 
-                    // 1. Música do Boss
+                    // Música do Boss
                     Object propMusica = objeto.getProperties().get("musica");
                     if (propMusica == null) propMusica = objeto.getProperties().get("Musica");
                     if (propMusica != null && "boss".equalsIgnoreCase(propMusica.toString().trim())) {
                         gatilhosMusicaBoss.add(polyFisica);
                     }
 
-                    // 2. Entrada do Boss (Cutscene)
+                    // Entrada do Boss (Cutscene)
                     Object propEntrada = objeto.getProperties().get("entradaBoss");
                     if (propEntrada != null && (Boolean)propEntrada) {
                         gatilhoEntradaBoss = polyFisica;
                     }
 
-                    // 3. NOVO: Gatilho do Cristal
+                    // Gatilho do Cristal
                     Object propMsg = objeto.getProperties().get("mostrarMensagem");
                     if (propMsg != null && (Boolean)propMsg) {
                         cristaisInterativos.add(polyFisica);
                     }
 
-                    // 4. NOVO: Gatilho da Saída do Fim do Jogo
+                    // Gatilho da Saída do Fim do Jogo
                     Object propSaida = objeto.getProperties().get("mensagemSaida");
                     if (propSaida != null && (Boolean)propSaida) {
                         objetosSaida.add(polyFisica);
@@ -379,7 +364,6 @@ public class GameScreen implements Screen {
         lightBrush = gerarTexturaLuz(256);
 
         playerController = new PlayerController();
-        // Mantendo o local de nascimento que você estipulou
         Vector2 posicaoInicial = new Vector2(22f, -80f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
@@ -400,7 +384,7 @@ public class GameScreen implements Screen {
         uiIconCura = game.assets.get("skills/cura_icon.png", Texture.class);
         uiIconDash = game.assets.get("skills/dash_icon.png", Texture.class);
         uiFrame = game.assets.get("skills/frame_icon.png", Texture.class);
-        // --- ÍCONES DOS BOTÕES ---
+        // Ícones dos botões
         btnMouseEsq = game.assets.get("skills/mouse_esq_icon.png", Texture.class);
         btnMouseDir = game.assets.get("skills/mouse_dir_icon.png", Texture.class);
         btnEspaco = game.assets.get("skills/espaco_icon.png", Texture.class);
@@ -410,8 +394,6 @@ public class GameScreen implements Screen {
         // Inicialização e fatiamento da Barra de Vida
         uiHealthBarSheet = game.assets.get("personagem/Health_Bar.png", Texture.class);
         uiHealthBarFrames = new TextureRegion[6];
-
-        // Divide a textura inteira por 6 para descobrir a largura exata de 1 frame
         int frameWidth = uiHealthBarSheet.getWidth() / 6;
         int frameHeight = uiHealthBarSheet.getHeight();
 
@@ -419,7 +401,6 @@ public class GameScreen implements Screen {
             uiHealthBarFrames[i] = new TextureRegion(uiHealthBarSheet, i * frameWidth, 0, frameWidth, frameHeight);
         }
 
-        // Criando um pixel preto com 75% de transparência (Alpha) para fazer o "overlay" do cooldown
         Pixmap pixmapHUD = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmapHUD.setColor(0, 0, 0, 0.75f);
         pixmapHUD.fill();
@@ -468,7 +449,6 @@ public class GameScreen implements Screen {
         }
 
         if (player.isDead) {
-            // Se morreu, dispara a transição apenas uma vez
             if (!iniciandoMorte) {
                 iniciandoMorte = true;
             }
@@ -482,7 +462,7 @@ public class GameScreen implements Screen {
         if (playerController.consumeDebugInfoToggle()) mostrarDebugInfo = !mostrarDebugInfo;
         if (playerController.consumeHitboxesToggle()) mostrarHitboxes = !mostrarHitboxes;
 
-        // Toggle da Mensagem (Só funciona se estiver perto)
+        // Toggle da Mensagem
         if (pertoDoCristal && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             mostrandoMensagemMagica = !mostrandoMensagemMagica;
         }
@@ -491,7 +471,6 @@ public class GameScreen implements Screen {
         if (pertoDaSaida && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             if (!iniciandoFimDeJogo) {
                 iniciandoFimDeJogo = true;
-                // Para todas as músicas rodando para dar aquele silêncio dramático no fade
                 if (musicaFundo != null) musicaFundo.stop();
                 if (musicaBoss != null) musicaBoss.stop();
             }
@@ -500,20 +479,17 @@ public class GameScreen implements Screen {
         auxMousePos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         camera.unproject(auxMousePos);
 
-        // --- CORREÇÃO AQUI ---
-        // Extraímos a hitbox do boss de forma segura (se o boss for null, passamos null)
         Rectangle hitboxDoBoss = (boss != null) ? boss.hitbox : null;
 
-        // Chamada atualizada respeitando a nova ordem de parâmetros na classe Player
         player.updateInput(delta, hitboxesMapa, hitboxDoBoss, limiteMapaX, limiteMapaY, auxMousePos.x, auxMousePos.y);
 
         return true;
     }
 
     private void logic(float delta) {
-        // LÓGICA DA CUTSCENE DO BOSS ---
+        // LÓGICA DA CUTSCENE DO BOSS
 
-        // 1. Verifica se o player pisou na entrada
+        // Verifica se o player pisou na entrada
         if (!cutsceneIniciada && gatilhoEntradaBoss != null) {
             float centroX = player.hitbox.x + (player.hitbox.width / 2f);
             float centroY = player.hitbox.y + (player.hitbox.height / 2f);
@@ -527,17 +503,14 @@ public class GameScreen implements Screen {
             }
         }
 
-        // 2. Controla o andamento do player e o timer
+        // Controla o andamento do player e o timer
         if (cutsceneAndando) {
-            // Se o player chegou muito perto do destino (0.3f de tolerância)
             if (player.posicaoMundo.dst(player.destinoCutscene) <= 0.3f) {
                 cutsceneAndando = false;
-                player.emCutscene = false; // Devolve os controles ao jogador
-
-                // Opcional: Faz o jogador olhar para noroeste (onde o boss está) ao chegar no ponto
+                player.emCutscene = false;
                 player.direcaoAtual = "NW";
 
-                timerBossAcordar = 1.5f; // Dispara o cronômetro do boss
+                timerBossAcordar = 0.5f;
             }
         } else if (cutsceneIniciada && !bossAcordou) {
             timerBossAcordar -= delta;
@@ -604,9 +577,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // --- AQUI ESTÁ A NOVA CONDIÇÃO ---
-        // Se o boss já morreu, forçamos o sistema a achar que a sala do boss "acabou",
-        // fazendo o crossfade retornar para a música normal.
         if (boss != null && boss.isDead) {
             naSalaDoBoss = false;
 
@@ -621,12 +591,12 @@ public class GameScreen implements Screen {
 
         if (naSalaDoBoss) {
             if (!musicaBoss.isPlaying()) musicaBoss.play();
-            // Aumenta o Boss, diminui a Caverna (Limitado em 0.1f conforme o seu original)
+            // Aumenta o Boss, diminui a Caverna
             volumeBoss = Math.min(0.1f, volumeBoss + velocidadeFade);
             volumeFundo = Math.max(0f, volumeFundo - velocidadeFade);
         } else {
             if (!musicaFundo.isPlaying()) musicaFundo.play();
-            // Aumenta a Caverna, diminui o Boss (Limitado em 1.0f)
+            // Aumenta a Caverna, diminui o Boss
             volumeFundo = Math.min(1.0f, volumeFundo + velocidadeFade);
             volumeBoss = Math.max(0f, volumeBoss - velocidadeFade);
         }
@@ -634,7 +604,6 @@ public class GameScreen implements Screen {
         musicaFundo.setVolume(volumeFundo);
         musicaBoss.setVolume(volumeBoss);
 
-        // Pausa a música que ficou totalmente muda para economizar CPU
         if (volumeFundo <= 0f && musicaFundo.isPlaying()) musicaFundo.pause();
         if (volumeBoss <= 0f && musicaBoss.isPlaying()) musicaBoss.pause();
         // ----------------------------------------
@@ -680,13 +649,13 @@ public class GameScreen implements Screen {
             }
         }
 
-        // --- ATUALIZAÇÃO E REMOÇÃO DOS MORCEGOS (Mantém o Object Pooling) ---
+        // --- ATUALIZAÇÃO E REMOÇÃO DOS MORCEGOS ---
         for (int i = morcegos.size - 1; i >= 0; i--) {
             Morcego morcego = morcegos.get(i);
 
             if (!morcego.isAtivo) {
                 morcegos.removeIndex(i);
-                morcegoPool.free(morcego); // Devolve para a Pool limpinho!
+                morcegoPool.free(morcego);
                 continue;
             }
 
@@ -697,7 +666,7 @@ public class GameScreen implements Screen {
                 // Só bate se o cooldown do morcego já recarregou
                 if (morcego.attackCooldown >= morcego.tempo_recarga_ataque) {
                     player.tomarDano(1);
-                    morcego.attackCooldown = 0f; // Reseta o ataque DESSSE morcego
+                    morcego.attackCooldown = 0f;
                 }
             }
         }
@@ -722,7 +691,6 @@ public class GameScreen implements Screen {
         listaDeDesenho.clear();
         player.atualizarRenderizacao(delta, screenX, screenY);
         player.renderObj.alpha = 1f;
-        // Opcional: Garantir que o player não receba cor residual
         player.renderObj.color = Color.WHITE;
         listaDeDesenho.add(player.renderObj);
 
@@ -744,11 +712,7 @@ public class GameScreen implements Screen {
                 bossRender.drawY = boss.getScreenY() - 175f;
                 bossRender.sortY = boss.getScreenY();
                 bossRender.alpha = 1f;
-
-                // --- AQUI ---
-                // Copiamos a cor exata que está sendo calculada pela classe Boss
                 bossRender.color = boss.renderObj.color != null ? boss.renderObj.color : Color.WHITE;
-
                 bossRender.isElementoMapa = false;
                 listaDeDesenho.add(bossRender);
             }
@@ -795,10 +759,6 @@ public class GameScreen implements Screen {
                 obj.textura = obj.tile.getTextureRegion();
             }
             if (obj.textura != null) {
-
-                // --- AQUI ---
-                // Aplicamos a cor da entidade ao SpriteBatch.
-                // A cor contém valores normalizados R, G, B e o Alpha.
                 if (obj.color != null) {
                     batch.setColor(obj.color.r, obj.color.g, obj.color.b, obj.alpha);
                 } else {
@@ -819,14 +779,12 @@ public class GameScreen implements Screen {
         if (!player.efeitoCura.isComplete()) {
             player.efeitoCura.draw(batch, delta);
         }
-        // Desenha a poeira/fogo do ataque do Boss (se o boss existir e a partícula estiver ativa)
+        // Desenha a poeira do ataque do Boss (se o boss existir e a partícula estiver ativa)
         if (boss != null && !boss.efeitoAtaque.isComplete()) {
             boss.efeitoAtaque.draw(batch, delta);
         }
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
-
-        // O restante do método (luzes, hitboxes, HUD, etc) continua inalterado daqui para baixo...
 
         lightBuffer.begin();
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 0.95f);
@@ -970,7 +928,7 @@ public class GameScreen implements Screen {
                 float larguraBarraPlayer = 40f;
                 float alturaBarraPlayer = 5f;
                 float barraPlayerX = pScreenX - (larguraBarraPlayer / 2f);
-                float barraPlayerY = pScreenY + 40f; // Ajuste acima da cabeça
+                float barraPlayerY = pScreenY + 40f;
 
                 shapeRenderer.setColor(Color.RED);
                 shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer, alturaBarraPlayer);
@@ -1094,9 +1052,8 @@ public class GameScreen implements Screen {
         desenharSlotHabilidade(uiIconCura, uiFrame, xCura, uiY, slotSize, porcCura);
         desenharSlotHabilidade(uiIconCorrida, uiFrame, xCorrida, uiY, slotSize, 1f);
 
-        // --- DESENHA O CONTADOR DE CURAS ---
-        // Usamos a fonte já existente para escrever sutilmente no canto inferior direito do ícone
-        font.getData().setScale(1.2f); // tamanho da fonte
+        // Desenha o contador de curas
+        font.getData().setScale(1.2f);
         font.setColor(Color.WHITE);
 
         // A string que será desenhada (ex: "2", "1" ou "0")
@@ -1104,16 +1061,10 @@ public class GameScreen implements Screen {
         float textX = xCura + slotSize - 20f;
         float textY = uiY + 24f;
         font.draw(game.batch, textoCura, textX, textY);
-
-        // Restaura a escala e cor para não afetar outras coisas que usem a fonte
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
 
-        // Tamanho padrão dos botões quadrados (Q, Mouse, etc)
         float btnSize = 24f;
-
-        // Se a sua imagem do espaço ou do shift for retangular (mais comprida),
-        // você pode ajustar essas larguras específicas abaixo:
         float btnWidthShift = 36f;
         float btnWidthEspaco = 40f;
 
@@ -1148,10 +1099,6 @@ public class GameScreen implements Screen {
 
                 alphaMorte += delta * 1.0f;
 
-                // O SpriteBatch JÁ ESTÁ ABERTO aqui! Não precisamos chamar begin() de novo.
-                // A transparência (Blend) também já é nativa do SpriteBatch.
-
-                // Apenas tingimos o batch de preto com Alpha e desenhamos o retângulo
                 game.batch.setColor(0f, 0f, 0f, Math.min(alphaMorte, 1f));
                 game.batch.draw(pixelPretoTransicao, 0, 0, uiViewport.getWorldWidth(), uiViewport.getWorldHeight());
 
@@ -1166,7 +1113,7 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Efeito de Fade Out ao finalizar o jogo ---
+        // Efeito de Fade Out ao finalizar o jogo
         if (iniciandoFimDeJogo) {
             alphaFim += delta * 1.0f;
 
@@ -1185,7 +1132,7 @@ public class GameScreen implements Screen {
     }
 
     private void spawnarMorcegoNoIndice(int index) {
-        // Puxa da sua Pool (reaproveitamento de memória)
+        // Puxa da Pool (reaproveitamento de memória)
         Morcego m = morcegoPool.obtain();
 
         // Inicia o morcego na coordenada específica do índice
@@ -1194,9 +1141,9 @@ public class GameScreen implements Screen {
         // Adiciona na lista principal de renderização/lógica
         morcegos.add(m);
 
-        // Salva a referência para sabermos que este ponto de spawn está ocupado
+        // Salva a referência para saber que este ponto de spawn está ocupado
         morcegosNosSpawns[index] = m;
-        timersSpawnMorcegos[index] = 0f; // Reseta o cronômetro
+        timersSpawnMorcegos[index] = 0f;
     }
 
     private void fecharPortaBoss() {
@@ -1204,14 +1151,14 @@ public class GameScreen implements Screen {
 
         portaFechada = true;
 
-        // 1. Cria a barreira física invisível baseada no polígono da entrada
+        // Cria a barreira física invisível baseada no polígono da entrada
         Rectangle bounds = gatilhoEntradaBoss.getBoundingRectangle();
         hitboxPorta = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
 
         // Adiciona na lista geral de colisões (bloqueia o Player e o Boss de sair)
         hitboxesMapa.add(hitboxPorta);
 
-        // 2. Cria a arte visual da teia para participar do Z-Sorting (Profundidade isométrica)
+        // Cria a arte visual da teia para participar do Z-Sorting (Profundidade isométrica)
         portaRenderizavel = new ObjetoRenderizavel();
         portaRenderizavel.textura = new TextureRegion(textureParedeTeia);
 
@@ -1225,7 +1172,6 @@ public class GameScreen implements Screen {
 
         // Centraliza a imagem da teia no eixo X
         portaRenderizavel.drawX = pScreenX - (portaRenderizavel.textura.getRegionWidth() / 2f);
-        // O eixo Y pode precisar de um pequeno ajuste dependendo de quão alta é a sua imagem da teia
         portaRenderizavel.drawY = pScreenY;
 
         // Define a ordem de desenho para renderizar corretamente atrás ou na frente do player
@@ -1235,7 +1181,7 @@ public class GameScreen implements Screen {
         portaRenderizavel.alpha = 1f;
         portaRenderizavel.color = Color.WHITE;
 
-        // Adiciona ao cenário. O jogo passará a desenhar essa teia automaticamente!
+        // Adiciona ao cenário
         elementosMapaRenderizaveis.add(portaRenderizavel);
     }
 
@@ -1272,10 +1218,10 @@ public class GameScreen implements Screen {
     }
 
     private void desenharSlotHabilidade(Texture icone, Texture frame, float x, float y, float size, float porcentagemPronto) {
-        // 1. Desenha o Ícone base
+        // Desenha o Ícone base
         game.batch.draw(icone, x, y, size, size);
 
-        // 2. Lógica da Sombra de Cooldown (Desenhada de cima para baixo)
+        // Lógica da Sombra de Cooldown (Desenhada de cima para baixo)
         // Se a porcentagem for menor que 1.0, significa que está recarregando
         if (porcentagemPronto < 1f) {
             float alturaSombra = size * (1f - porcentagemPronto); // Quanto falta para encher
@@ -1284,7 +1230,7 @@ public class GameScreen implements Screen {
             game.batch.draw(uiSombraCooldown, x, ySombra, size, alturaSombra);
         }
 
-        // 3. Desenha a Moldura (Frame) por cima de tudo para dar o acabamento limpo
+        // Desenha a Moldura (Frame) por cima de tudo
         game.batch.draw(frame, x, y, size, size);
     }
 

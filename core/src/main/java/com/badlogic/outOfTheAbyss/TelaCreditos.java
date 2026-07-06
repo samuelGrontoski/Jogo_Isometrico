@@ -3,7 +3,7 @@ package com.badlogic.outOfTheAbyss;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.audio.Music; // NOVO: Import da classe Music
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -16,7 +16,7 @@ public class TelaCreditos implements Screen {
     private final OrthographicCamera camera;
     private final Viewport viewport;
 
-    private Music musicaCreditos; // NOVO: Variável para a música
+    private Music musicaCreditos;
 
     private enum Estado { FADE_IN, ESPERANDO_INPUT, FADE_OUT }
     private Estado estadoAtual = Estado.FADE_IN;
@@ -27,17 +27,14 @@ public class TelaCreditos implements Screen {
         this.game = game;
         this.camera = new OrthographicCamera();
         this.viewport = new FitViewport(640, 360, camera);
-
-        // NOVO: Puxa a música do AssetManager
         this.musicaCreditos = game.assets.get("sons/The Black Mirror.wav", Music.class);
     }
 
     @Override
     public void show() {
-        // NOVO: Configura a música para repetir (loop) e dá play assim que a tela abre
         if (musicaCreditos != null) {
             musicaCreditos.setLooping(true);
-            musicaCreditos.setVolume(1.0f); // 100% de volume
+            musicaCreditos.setVolume(1.0f);
             musicaCreditos.play();
         }
     }
@@ -66,13 +63,11 @@ public class TelaCreditos implements Screen {
             case FADE_OUT:
                 alphaTexto -= delta * VELOCIDADE_FADE;
 
-                // NOVO: Faz um pequeno Fade Out no volume da música enquanto a tela apaga
                 if (musicaCreditos != null && musicaCreditos.isPlaying()) {
                     musicaCreditos.setVolume(Math.max(0f, alphaTexto));
                 }
 
                 if (alphaTexto <= 0f) {
-                    // NOVO: Para a música antes de voltar para o menu inicial
                     if (musicaCreditos != null) musicaCreditos.stop();
 
                     game.setScreen(new MenuInicial(game));
@@ -103,14 +98,12 @@ public class TelaCreditos implements Screen {
         game.fontTelas.setColor(1f, 1f, 1f, Math.max(0f, alphaTexto));
 
         game.fontTelas.draw(game.batch, "Desenvolvido por:", 0, centroY + 40f, margemDireita, Align.center, false);
-
-        // Use a cor cinza claro para os nomes ficarem elegantes
         game.fontTelas.setColor(0.8f, 0.8f, 0.8f, Math.max(0f, alphaTexto));
         game.fontTelas.draw(game.batch, "Matheus Dall olmo", 0, centroY, margemDireita, Align.center, false);
         game.fontTelas.draw(game.batch, "Pablo Gabriel Sustisso", 0, centroY - 30f, margemDireita, Align.center, false);
         game.fontTelas.draw(game.batch, "Samuel Grontoski", 0, centroY - 60f, margemDireita, Align.center, false);
 
-        // "Pressione qualquer tecla" piscando ou esmaecido no rodapé
+        // "Pressione qualquer tecla" piscando
         if (estadoAtual == Estado.ESPERANDO_INPUT) {
             float pulso = 0.5f + (float)(Math.sin(System.currentTimeMillis() / 300.0) * 0.5);
             game.fontTelas.setColor(1f, 1f, 1f, pulso);
@@ -123,7 +116,6 @@ public class TelaCreditos implements Screen {
 
         game.fontTelas.draw(game.batch, "Pressione qualquer tecla", 0, 40f, margemDireita, Align.center, false);
 
-        // Restaura as cores originais no fim
         game.fontTelas.setColor(Color.WHITE);
         game.batch.setColor(Color.WHITE);
 

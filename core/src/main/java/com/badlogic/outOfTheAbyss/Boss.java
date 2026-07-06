@@ -15,7 +15,7 @@ import com.badlogic.gdx.utils.Pool;
 
 public class Boss {
     public ParticleEffect efeitoAtaque;
-    public int vidaMaxima = 10;
+    public int vidaMaxima = 1;
     public int vida = vidaMaxima;
     public boolean isDead = false;
     private boolean isBlinking = false;
@@ -55,7 +55,7 @@ public class Boss {
     private float timerTrocaDirecao = 0f;
     private final float cooldownTrocaDirecao = 0.15f;
 
-    // --- SISTEMA DE ATAQUE ---
+    // Sistema de ataque
     private float attackStateTime = 0f;
     private boolean danoAplicado = false;
     private boolean precisaReiniciarAtaque = false;
@@ -81,11 +81,10 @@ public class Boss {
 
     public Array<TeiaProjetil> teiasAtivas = new Array<>();
 
-    // Cria a "Piscina" de Teias
     private final Pool<TeiaProjetil> teiaPool = new Pool<TeiaProjetil>() {
         @Override
         protected TeiaProjetil newObject() {
-            return new TeiaProjetil(); // Ensina o Pool como criar uma nova teia caso a piscina esteja vazia
+            return new TeiaProjetil();
         }
     };
     private boolean projetilDisparado = false;
@@ -93,7 +92,6 @@ public class Boss {
     private static final float TILE_WIDTH = 32f;
     private static final float TILE_HEIGHT = 16f;
 
-    // --- ÁUDIO ---
     private Sound somMorte;
 
     public Boss(Vector2 spawn, AssetManager assets) {
@@ -104,17 +102,12 @@ public class Boss {
         stateTime = 0f;
         carregarAnimacoes(assets);
 
-        // Puxa o efeito sonoro já carregado na memória pelo AssetManager
         somMorte = assets.get("sons/Boss_Die.mp3", Sound.class);
 
-        // --- INICIALIZA A PARTÍCULA DO ATAQUE ---
         ParticleEffect baseEffect = assets.get("particulas/ataque_aranha.p", ParticleEffect.class);
         this.efeitoAtaque = new ParticleEffect(baseEffect);
 
-        // Se a partícula estiver muito grande ou pequena, ajuste aqui (opcional):
         this.efeitoAtaque.scaleEffect(0.8f);
-
-        //this.efeitoAtaque.update(100f);
     }
 
     private void carregarAnimacoes(AssetManager assets) {
@@ -391,23 +384,18 @@ public class Boss {
         if (dentroDaJanelaDeImpacto && !danoAplicado) {
             danoAplicado = true;
 
-            // --- LÓGICA DA PARTÍCULA DE IMPACTO ---
-            // 1. Pega o centro exato da hitbox de ataque no mundo isométrico
             float atkWorldX = hitboxAtaque.x + (hitboxAtaque.width / 2f);
             float atkWorldY = hitboxAtaque.y + (hitboxAtaque.height / 2f);
 
-            // 2. Converte essa posição para as coordenadas da tela (pixels)
             float atkScreenX = (atkWorldX - atkWorldY) * (TILE_WIDTH / 2f);
             float atkScreenY = (atkWorldX + atkWorldY) * (TILE_HEIGHT / 2f);
 
-            // 3. Fixa a partícula nesse local do chão e dá o play!
             efeitoAtaque.setPosition(atkScreenX, atkScreenY);
             efeitoAtaque.start();
-            // --------------------------------------
 
-            // --- APLICA O DANO NO PLAYER ---
+            // Aplica dano no player
             if (hitboxAtaque.overlaps(player.hitbox)) {
-                player.tomarDano(2); // Dano Corpo a Corpo
+                player.tomarDano(2);
             }
         }
     }
@@ -561,9 +549,7 @@ public class Boss {
 
         if (progresso >= 0.5f && !projetilDisparado) {
             Texture sheetCerta = direcaoAtual.equals("SE") ? sheetProjetilSE : sheetProjetilSW;
-            // Pede um objeto reciclado (ou cria um se for o primeiro tiro)
             TeiaProjetil novaTeia = teiaPool.obtain();
-            // Prepara a teia com os dados do tiro atual
             novaTeia.init(this.position, alvoAtaqueTravar, direcaoAtual, sheetCerta);
             teiasAtivas.add(novaTeia);
             projetilDisparado = true;
@@ -583,9 +569,8 @@ public class Boss {
             currentState = "DEATH";
             stateTime = 0f;
 
-            // --- TOCA O SOM DA MORTE ---
             if (somMorte != null) {
-                somMorte.play(1.0f); // 1.0f é o volume (100%)
+                somMorte.play(1.0f);
             }
         }
     }
