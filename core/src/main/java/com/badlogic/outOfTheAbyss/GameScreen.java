@@ -663,6 +663,10 @@ public class GameScreen implements Screen {
         if (!player.efeitoCura.isComplete()) {
             player.efeitoCura.draw(batch, delta);
         }
+        // Desenha a poeira/fogo do ataque do Boss (se o boss existir e a partícula estiver ativa)
+        if (boss != null && !boss.efeitoAtaque.isComplete()) {
+            boss.efeitoAtaque.draw(batch, delta);
+        }
         batch.setColor(1f, 1f, 1f, 1f);
         batch.end();
 

@@ -130,6 +130,7 @@ public class JogoIsometrico extends Game {
 
         // Partículas
         assets.load("particulas/cura.p", ParticleEffect.class);
+        assets.load("particulas/ataque_aranha.p", ParticleEffect.class);
     }
 
     @Override

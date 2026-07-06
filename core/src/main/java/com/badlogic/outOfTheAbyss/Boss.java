@@ -5,13 +5,16 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.Pool;
 
 public class Boss {
+    public ParticleEffect efeitoAtaque;
     public int vidaMaxima = 10;
     public int vida = vidaMaxima;
     public boolean isDead = false;
@@ -76,6 +79,14 @@ public class Boss {
     private Texture sheetProjetilSW;
 
     public Array<TeiaProjetil> teiasAtivas = new Array<>();
+
+    // Cria a "Piscina" de Teias
+    private final Pool<TeiaProjetil> teiaPool = new Pool<TeiaProjetil>() {
+        @Override
+        protected TeiaProjetil newObject() {
+            return new TeiaProjetil(); // Ensina o Pool como criar uma nova teia caso a piscina esteja vazia
+        }
+    };
     private boolean projetilDisparado = false;
 
     private static final float TILE_WIDTH = 32f;
@@ -94,6 +105,15 @@ public class Boss {
 
         // Puxa o efeito sonoro já carregado na memória pelo AssetManager
         somMorte = assets.get("sons/Boss_Die.mp3", Sound.class);
+
+        // --- INICIALIZA A PARTÍCULA DO ATAQUE ---
+        ParticleEffect baseEffect = assets.get("particulas/ataque_aranha.p", ParticleEffect.class);
+        this.efeitoAtaque = new ParticleEffect(baseEffect);
+
+        // Se a partícula estiver muito grande ou pequena, ajuste aqui (opcional):
+        this.efeitoAtaque.scaleEffect(0.8f);
+
+        //this.efeitoAtaque.update(100f);
     }
 
     private void carregarAnimacoes(AssetManager assets) {
@@ -237,8 +257,10 @@ public class Boss {
         for (int i = teiasAtivas.size - 1; i >= 0; i--) {
             TeiaProjetil teia = teiasAtivas.get(i);
             teia.update(delta, hitboxesMapa);
+
             if (teia.finalizada) {
                 teiasAtivas.removeIndex(i);
+                teiaPool.free(teia);
             }
         }
     }
@@ -361,6 +383,21 @@ public class Boss {
 
         if (dentroDaJanelaDeImpacto && !danoAplicado) {
             danoAplicado = true;
+
+            // --- LÓGICA DA PARTÍCULA DE IMPACTO ---
+            // 1. Pega o centro exato da hitbox de ataque no mundo isométrico
+            float atkWorldX = hitboxAtaque.x + (hitboxAtaque.width / 2f);
+            float atkWorldY = hitboxAtaque.y + (hitboxAtaque.height / 2f);
+
+            // 2. Converte essa posição para as coordenadas da tela (pixels)
+            float atkScreenX = (atkWorldX - atkWorldY) * (TILE_WIDTH / 2f);
+            float atkScreenY = (atkWorldX + atkWorldY) * (TILE_HEIGHT / 2f);
+
+            // 3. Fixa a partícula nesse local do chão e dá o play!
+            efeitoAtaque.setPosition(atkScreenX, atkScreenY);
+            efeitoAtaque.start();
+            // --------------------------------------
+
             // --- APLICA O DANO NO PLAYER ---
             if (hitboxAtaque.overlaps(player.hitbox)) {
                 player.tomarDano(2); // Dano Corpo a Corpo
@@ -517,7 +554,10 @@ public class Boss {
 
         if (progresso >= 0.5f && !projetilDisparado) {
             Texture sheetCerta = direcaoAtual.equals("SE") ? sheetProjetilSE : sheetProjetilSW;
-            TeiaProjetil novaTeia = new TeiaProjetil(this.position, alvoAtaqueTravar, direcaoAtual, sheetCerta);
+            // Pede um objeto reciclado (ou cria um se for o primeiro tiro)
+            TeiaProjetil novaTeia = teiaPool.obtain();
+            // Prepara a teia com os dados do tiro atual
+            novaTeia.init(this.position, alvoAtaqueTravar, direcaoAtual, sheetCerta);
             teiasAtivas.add(novaTeia);
             projetilDisparado = true;
         }
