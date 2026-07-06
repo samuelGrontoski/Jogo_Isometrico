@@ -52,7 +52,7 @@ public class JogoIsometrico extends Game {
         parameterTelas.magFilter = Texture.TextureFilter.Nearest;
         fontTelas = generatorTelas.generateFont(parameterTelas);
 
-        // 3. Descarta o gerador apenas UMA vez no final
+        // 3. Descarta os geradores
         generator.dispose();
         generatorTelas.dispose();
         // --- FIM DA CRIAÇÃO DAS FONTES ---

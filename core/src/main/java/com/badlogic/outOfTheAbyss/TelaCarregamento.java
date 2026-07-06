@@ -18,12 +18,10 @@ public class TelaCarregamento implements Screen {
 
     private float tempoDecorrido = 0f;
     private final float TEMPO_MINIMO = 0.5f;
-
-    // Máquina de Estados para a Transição Elden Ring
     private enum Estado { FADE_IN, PULSANDO, FADE_OUT }
     private Estado estadoAtual = Estado.FADE_IN;
     private float alphaSimbolo = 0f;
-    private final float VELOCIDADE_FADE = 1.0f; // Mesma velocidade do menu
+    private final float VELOCIDADE_FADE = 1.0f;
 
     public TelaCarregamento(final JogoIsometrico game) {
         this.game = game;
@@ -37,10 +35,8 @@ public class TelaCarregamento implements Screen {
 
     @Override
     public void render(float delta) {
-        // 1. Limita o delta para impedir pulos do símbolo na tela
         if (delta > 0.05f) delta = 0.05f;
 
-        // 2. Garante o fundo totalmente preto ANTES de processar os assets pesados
         Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
@@ -82,7 +78,6 @@ public class TelaCarregamento implements Screen {
         float originX = w / 2f;
         float originY = h / 2f;
 
-        // 3. Garante a mesclagem ligada no OpenGL
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 

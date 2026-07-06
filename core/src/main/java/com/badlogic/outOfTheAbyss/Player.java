@@ -22,7 +22,6 @@ public class Player {
 
     // --- CONTROLE DE PASSOS ---
     private float stepTimer = 0f;
-    // Ajuste esses valores para sincronizar com os frames em que o pé do personagem toca o chão:
     private float intervaloPassoAndando = 0.63f;
     private float intervaloPassoCorrendo = 0.38f;
     private float intervaloPassoAgachado = 0.63f;
@@ -114,7 +113,6 @@ public class Player {
         this.somAtaque = assets.get("sons/ataque_espada.wav", Sound.class);
         this.somCura = assets.get("sons/cura.mp3", Sound.class);
         this.somPassos = assets.get("sons/passos.wav", Sound.class);
-        // Pega a base da partícula e cria uma cópia para o player usar
         ParticleEffect baseEffect = assets.get("particulas/cura.p", ParticleEffect.class);
         this.efeitoCura = new ParticleEffect(baseEffect);
         this.efeitoCura.scaleEffect(0.35f);
@@ -173,8 +171,8 @@ public class Player {
     public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
         if (isDead) return;
 
+        // Força o cancelamento de qualquer ação (caso o player entre rolando ou atacando)
         if (emCutscene) {
-            // Força o cancelamento de qualquer ação (caso o player entre rolando ou atacando)
             estaAtacando = false;
             estaAtacandoPesado = false;
             estaRolando = false;
@@ -185,7 +183,7 @@ public class Player {
 
             // Se a distância for maior que 0.2 blocos (ainda não chegou)
             if (direcao.len() > 0.2f) {
-                inputDirecao.set(direcao).nor(); // Aponta o joystick virtual para o destino
+                inputDirecao.set(direcao).nor();
                 float moveSpeed = velocidadeBase * delta;
                 aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
                 estaEmMovimento = true;
@@ -217,7 +215,7 @@ public class Player {
                 inputDirecao.set(0, 0);
             }
             atualizarHitbox();
-            return; // O RETURN É CRUCIAL! Ele impede que o código continue e leia o teclado!
+            return;
         }
 
         if (cooldownRollTimer < tempoRecargaRoll) {
@@ -508,7 +506,6 @@ public class Player {
         }
     }
 
-    // --- FUNÇÃO PARA TOMAR DANO ---
     public void tomarDano(int dano) {
         if (isDead) return;
 
@@ -526,7 +523,6 @@ public class Player {
             estaEmMovimento = false;
             estaTomandoDano = false;
         } else {
-            // NOVO: Inicia animação de dor
             estaTomandoDano = true;
             takeDamageTimer = 0f;
 
@@ -618,7 +614,6 @@ public class Player {
         renderObj.drawY = screenY;
         renderObj.sortY = screenY;
 
-        // Centraliza a partícula no meio do player (ajuste o + 16f para subir/descer a origem da partícula)
         if (!efeitoCura.isComplete()) {
             efeitoCura.setPosition(screenX, screenY + 32f);
         }
@@ -637,7 +632,6 @@ public class Player {
         Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
         if (anim == null) anim = deathAnimations.get("SE");
 
-        // Verifica se o tempo atual do stateTime já ultrapassou o tempo total da animação
         return anim.isAnimationFinished(stateTime);
     }
 }
