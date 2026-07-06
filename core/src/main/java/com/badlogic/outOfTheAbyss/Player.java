@@ -13,6 +13,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Player {
+    // --- STATUS DE VIDA ---
+    public int vidaMaxima = 5;
+    public int vida = vidaMaxima;
+    public boolean isDead = false;
+
     // Variaveis basicas
     public Vector2 posicaoMundo;
     public Vector2 inputDirecao;
@@ -48,8 +53,8 @@ public class Player {
     // Variaveis de esquiva
     public boolean estaRolando = false;
     public float rollTimer = 0f;
-    public final float duracaoRoll = 0.5f;
-    public float cooldownRollTimer = 0.5f;
+    public final float duracaoRoll = 0.6f;
+    public float cooldownRollTimer = 0.6f;
     public final float tempoRecargaRoll = 1.5f;
     public Vector2 direcaoRoll = new Vector2();
 
@@ -64,6 +69,7 @@ public class Player {
     Map<String, Animation<TextureRegion>> attackLeveAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> attackPesadoAnimations = new HashMap<>();
     Map<String, Animation<TextureRegion>> healAnimations = new HashMap<>();
+    Map<String, Animation<TextureRegion>> deathAnimations = new HashMap<>();
 
     public ObjetoRenderizavel renderObj;
     private final PlayerController controller;
@@ -91,6 +97,7 @@ public class Player {
         Texture attackLeveSheet = assets.get("personagem/Melee1.png", Texture.class);
         Texture attackPesadoSheet = assets.get("personagem/Melee2.png", Texture.class);
         Texture healSheet = assets.get("personagem/Heal.png", Texture.class);
+        Texture deathSheet = assets.get("personagem/Die.png", Texture.class);
 
         int cols = 15;
         int rows = 8;
@@ -104,6 +111,9 @@ public class Player {
         attackLeveAnimations = criarAnimacao(attackLeveSheet, cols, rows, duracaoAtaque / cols, Animation.PlayMode.NORMAL);
         attackPesadoAnimations = criarAnimacao(attackPesadoSheet, cols, rows, duracaoAtaquePesado / cols, Animation.PlayMode.NORMAL);
         healAnimations = criarAnimacao(healSheet, cols, rows, duracaoHeal / cols, Animation.PlayMode.NORMAL);
+
+        // Carrega a animação de morte com PlayMode.NORMAL para poder travar no último frame
+        deathAnimations = criarAnimacao(deathSheet, cols, rows, 0.15f, Animation.PlayMode.NORMAL);
     }
 
     private Map<String, Animation<TextureRegion>> criarAnimacao(Texture sheet, int cols, int rows, float frameDuration, Animation.PlayMode mode) {
@@ -125,6 +135,8 @@ public class Player {
     }
 
     public void updateInput(float delta, Array<Rectangle> hitboxesMapa, Rectangle hitboxBoss, float limiteX, float limiteY, float mouseMundoX, float mouseMundoY) {
+        if (isDead) return; // Se morto, ignora todos os inputs físicos (O ESC fica a cargo da GameScreen)
+
         if (cooldownRollTimer < tempoRecargaRoll) {
             cooldownRollTimer += delta;
         }
@@ -178,7 +190,6 @@ public class Player {
         float moveSpeed = velocidadeAtual * delta;
 
         verificarAtaque(mouseMundoX, mouseMundoY);
-
         aplicarMovimentoComColisao(moveSpeed, hitboxesMapa, hitboxBoss);
 
         estaEmMovimento = !inputDirecao.isZero();
@@ -344,13 +355,11 @@ public class Player {
 
         // Ataque Leve
         if (estaAtacando && !danoAplicado) {
-            // Dano nos Morcegos
             for (Morcego morcego : morcegos) {
                 if (morcego.isAtivo && hitboxAtaque.overlaps(morcego.hitboxColisao)) {
                     morcego.tomarDano();
                 }
             }
-            // Dano no Boss (1 de Dano)
             if (boss != null && !boss.isDead && hitboxAtaque.overlaps(boss.hitbox)) {
                 boss.tomarDano(1);
             }
@@ -368,7 +377,6 @@ public class Player {
                     morcego.tomarDano();
                 }
             }
-            // Dano no Boss (2 de Dano)
             if (boss != null && !boss.isDead && hitboxAtaquePesado.overlaps(boss.hitbox)) {
                 boss.tomarDano(2);
             }
@@ -376,11 +384,37 @@ public class Player {
         }
     }
 
+    // --- FUNÇÃO PARA TOMAR DANO ---
+    public void tomarDano(int dano) {
+        if (isDead) return;
+
+        vida -= dano;
+
+        if (vida <= 0) {
+            vida = 0;
+            isDead = true;
+            stateTime = 0f; // Reseta o tempo para iniciar a animação de morte
+
+            // Interrompe qualquer ação atual
+            estaRolando = false;
+            estaAtacando = false;
+            estaAtacandoPesado = false;
+            estaCurando = false;
+            estaEmMovimento = false;
+        }
+    }
+
     public void atualizarRenderizacao(float delta, float screenX, float screenY) {
         stateTime += delta;
         TextureRegion currentFrame;
 
-        if (estaCurando) {
+        // --- RENDERIZAÇÃO DA MORTE ---
+        if (isDead) {
+            Animation<TextureRegion> anim = deathAnimations.get(direcaoAtual);
+            if (anim == null) anim = deathAnimations.get("SE");
+            currentFrame = anim.getKeyFrame(stateTime, false); // "false" trava no último frame
+
+        } else if (estaCurando) {
             Animation<TextureRegion> anim = healAnimations.get(direcaoAtual);
             if (anim == null) anim = healAnimations.get("SE");
             currentFrame = anim.getKeyFrame(healTimer, false);

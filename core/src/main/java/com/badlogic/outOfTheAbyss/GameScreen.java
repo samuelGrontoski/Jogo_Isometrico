@@ -306,7 +306,7 @@ public class GameScreen implements Screen {
 
         playerController = new PlayerController();
         // Mantendo o local de nascimento que você estipulou
-        Vector2 posicaoInicial = new Vector2(75f, -20f);
+        Vector2 posicaoInicial = new Vector2(60f, -58f);
         player = new Player(posicaoInicial, game.assets, playerController);
 
         Vector2 posicaoInicialBoss = new Vector2(78f, -22f);
@@ -461,9 +461,8 @@ public class GameScreen implements Screen {
         player.atualizarLogicaAtaque(delta, morcegos, boss);
 
         if (boss != null) {
-            boss.update(delta, player.posicaoMundo, player.hitbox, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
+            boss.update(delta, player, hitboxesMapa, limitesLayer.getHeight(), limitesLayer.getWidth());
 
-            // --- CHECAGEM DE COLISÃO: TEIAS VS PLAYER ---
             for (TeiaProjetil teia : boss.teiasAtivas) {
                 if (teia.hitbox.overlaps(player.hitbox)) {
 
@@ -472,6 +471,7 @@ public class GameScreen implements Screen {
                         teia.stateTime = 0f;
                         teia.posicaoMundo.set(player.posicaoMundo);
                         teia.hitbox.setPosition(teia.posicaoMundo.x, teia.posicaoMundo.y);
+                        player.tomarDano(1);
                     }
                 }
             }
@@ -751,6 +751,24 @@ public class GameScreen implements Screen {
                 float proporcaoVidaBoss = Math.max(0, (float) boss.vida / boss.vidaMaxima);
                 shapeRenderer.rect(barraBossX, barraBossY, larguraBarraBoss * proporcaoVidaBoss, alturaBarraBoss);
             }
+
+            if (!player.isDead) {
+                float pScreenX = (player.posicaoMundo.x - player.posicaoMundo.y) * (tile_width / 2f);
+                float pScreenY = (player.posicaoMundo.x + player.posicaoMundo.y) * (tile_height / 2f);
+
+                float larguraBarraPlayer = 40f;
+                float alturaBarraPlayer = 5f;
+                float barraPlayerX = pScreenX - (larguraBarraPlayer / 2f);
+                float barraPlayerY = pScreenY + 40f; // Ajuste acima da cabeça
+
+                shapeRenderer.setColor(Color.RED);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer, alturaBarraPlayer);
+
+                shapeRenderer.setColor(Color.GREEN);
+                float proporcaoVidaPlayer = Math.max(0, (float) player.vida / player.vidaMaxima);
+                shapeRenderer.rect(barraPlayerX, barraPlayerY, larguraBarraPlayer * proporcaoVidaPlayer, alturaBarraPlayer);
+            }
+
             shapeRenderer.end();
         }
 

@@ -62,7 +62,7 @@ public class Boss {
     private final Vector2 direcaoVetorAtaque = new Vector2(1, 0);
     private final Vector2 alvoAtaqueTravar = new Vector2();
     private float attackCooldownTimer = 0f;
-    public float attackCooldown = 0.5f;
+    public float attackCooldown = 0.7f;
 
     // Ataque de Teia
     public float rangedAttackRange = 12f;
@@ -147,7 +147,7 @@ public class Boss {
         return animacao;
     }
 
-    public void update(float delta, Vector2 playerPosition, Rectangle playerHitbox, Array<Rectangle> hitboxesMapa, int larguraMapa, int alturaMapa) {
+    public void update(float delta, Player player, Array<Rectangle> hitboxesMapa, int larguraMapa, int alturaMapa) {
         if (isBlinking) {
             blinkTimer -= delta;
             if (blinkTimer <= 0) {
@@ -168,6 +168,10 @@ public class Boss {
 
         if (attackCooldownTimer > 0f) attackCooldownTimer -= delta;
         if (timerCooldownRanged > 0f) timerCooldownRanged -= delta;
+
+        // Extrai a posição e hitbox do player para calcular distâncias
+        Vector2 playerPosition = player.posicaoMundo;
+        Rectangle playerHitbox = player.hitbox;
 
         float bossCenterX = hitbox.x + (hitbox.width / 2f);
         float bossCenterY = hitbox.y + (hitbox.height / 2f);
@@ -217,7 +221,7 @@ public class Boss {
         }
 
         if (currentState.equals("ATTACK")) {
-            atacar(delta, estadoAnterior, playerPosition, playerHitbox);
+            atacar(delta, estadoAnterior, player);
         }
         else if (currentState.equals("ATTACK2")) {
             atacarLonge(delta, estadoAnterior, playerPosition);
@@ -311,7 +315,7 @@ public class Boss {
         atualizarHitbox();
     }
 
-    private void atacar(float delta, String estadoAnterior, Vector2 playerPosition, Rectangle playerHitbox) {
+    private void atacar(float delta, String estadoAnterior, Player player) {
         boolean primeiraVezEntrandoEmAttack = !estadoAnterior.equals("ATTACK");
 
         if (primeiraVezEntrandoEmAttack || precisaReiniciarAtaque) {
@@ -322,8 +326,8 @@ public class Boss {
             float bossCenterX = hitbox.x + (hitbox.width / 2f);
             float bossCenterY = hitbox.y + (hitbox.height / 2f);
 
-            float playerCenterX = playerHitbox.x + (playerHitbox.width / 2f);
-            float playerCenterY = playerHitbox.y + (playerHitbox.height / 2f);
+            float playerCenterX = player.hitbox.x + (player.hitbox.width / 2f);
+            float playerCenterY = player.hitbox.y + (player.hitbox.height / 2f);
 
             Vector2 direcaoParaPlayer = new Vector2(playerCenterX - bossCenterX, playerCenterY - bossCenterY);
 
@@ -336,7 +340,7 @@ public class Boss {
                 direcaoVetorAtaque.set(1, 0);
             }
 
-            alvoAtaqueTravar.set(playerPosition);
+            alvoAtaqueTravar.set(player.posicaoMundo);
             calcularTilesTelegraph();
         }
 
@@ -357,6 +361,10 @@ public class Boss {
 
         if (dentroDaJanelaDeImpacto && !danoAplicado) {
             danoAplicado = true;
+            // --- APLICA O DANO NO PLAYER ---
+            if (hitboxAtaque.overlaps(player.hitbox)) {
+                player.tomarDano(2); // Dano Corpo a Corpo
+            }
         }
     }
 
