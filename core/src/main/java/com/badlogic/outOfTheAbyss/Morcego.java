@@ -12,12 +12,16 @@ import com.badlogic.gdx.utils.Pool.Poolable;
 // Inteligência Artificial Boid com implemento Poolable para reutilização em massa.
 public class Morcego implements Poolable {
     public boolean isAtivo = true;
-    public int vida = 3;
-    public final int vida_maxima = 3;
+    public int vida = 2;
+    public final int vida_maxima = 2;
 
     public Vector2 posicaoMundo;
     public Rectangle hitboxColisao;
     public float velocidade = 3.5f;
+    public final float raio_de_agro = 10.0f;
+    public boolean detectouPlayer = false;
+    public float attackCooldown = 1.0f; // Começa pronto para atacar
+    public final float tempo_recarga_ataque = 1.0f; // 1 segundo
 
     private Animation<TextureRegion> animacaoIdle;
     float localStateTime;
@@ -38,6 +42,8 @@ public class Morcego implements Poolable {
         this.localStateTime = 0f;
         this.isAtivo = true;
         this.vida = vida_maxima;
+        this.detectouPlayer = false;
+        this.attackCooldown = tempo_recarga_ataque;
 
         atualizarHitboxLogica();
 
@@ -67,8 +73,19 @@ public class Morcego implements Poolable {
         float distanciaPlayer = direcaoAoPlayer.len();
         Vector2 forcaTotal = new Vector2();
 
-        // Atração (Perseguição)
-        if (distanciaPlayer > 0.8f) {
+        // --- COOLDOWN DO ATAQUE ---
+        if (attackCooldown < tempo_recarga_ataque) {
+            attackCooldown += delta;
+        }
+
+        // --- SISTEMA DE AGRO ---
+        // Se o player entrar no raio de 5 tiles, o morcego detecta ele
+        if (distanciaPlayer <= raio_de_agro) {
+            detectouPlayer = true;
+        }
+
+        // Atração (Perseguição) - Só se move em direção ao player se já o detectou
+        if (detectouPlayer && distanciaPlayer > 0.8f) {
             forcaTotal.add(direcaoAoPlayer.nor());
         }
 
@@ -131,5 +148,7 @@ public class Morcego implements Poolable {
         isAtivo = false;
         renderObj.textura = null;
         vida = vida_maxima;
+        detectouPlayer = false;
+        this.attackCooldown = tempo_recarga_ataque;
     }
 }
